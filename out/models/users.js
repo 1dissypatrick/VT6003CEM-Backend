@@ -41,89 +41,104 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteById = exports.update = exports.findByUsername = exports.add = exports.getByUserId = exports.getSearch = exports.getAll = void 0;
+exports.deleteById = exports.update = exports.add = exports.getByEmail = exports.findByUsername = exports.getByUserId = exports.getSearch = exports.getAll = void 0;
 const db = __importStar(require("../helpers/database"));
-const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (limit = 10, page = 1) {
+const bcrypt_1 = __importDefault(require("bcrypt"));
+const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (limit = 20, page = 1) {
     const offset = (page - 1) * limit;
-    const query = "SELECT * FROM users LIMIT  ? OFFSET  ?;";
-    const data = yield db.run_query(query, [limit, offset]);
-    return data;
+    const query = 'SELECT id, username, email, role, avatarurl FROM users LIMIT :limit OFFSET :offset';
+    const results = yield db.run_query(query, { limit: limit.toString(), offset: offset.toString() });
+    return results !== null && results !== void 0 ? results : [];
 });
 exports.getAll = getAll;
-const getSearch = (sfield, q) => __awaiter(void 0, void 0, void 0, function* () {
-    const query = `SELECT ${sfield} FROM users WHERE ${sfield} LIKE '%${q}%' `;
-    try {
-        const data = yield db.run_query(query, null);
-        return data;
-    }
-    catch (error) {
-        return error;
-    }
+const getSearch = (fields, search) => __awaiter(void 0, void 0, void 0, function* () {
+    const fieldArray = Array.isArray(fields) ? fields : [fields];
+    const validFields = fieldArray.filter((f) => ['username', 'email', 'role'].includes(f));
+    if (!validFields.length)
+        return [];
+    const conditions = validFields.map((f) => `${f} ILIKE :search`).join(' OR ');
+    const query = `SELECT id, username, email, role, avatarurl FROM users WHERE ${conditions}`;
+    const results = yield db.run_query(query, { search: `%${search}%` });
+    return results !== null && results !== void 0 ? results : [];
 });
 exports.getSearch = getSearch;
 const getByUserId = (id) => __awaiter(void 0, void 0, void 0, function* () {
-    let query = "SELECT * FROM users WHERE id = ?";
-    let values = [id];
-    let data = yield db.run_query(query, values);
-    return data;
+    const query = 'SELECT id, username, email, role, avatarurl FROM users WHERE id = :id';
+    const results = yield db.run_query(query, { id: id.toString() });
+    return results.length > 0 ? results[0] : null;
 });
 exports.getByUserId = getByUserId;
+const findByUsername = (username) => __awaiter(void 0, void 0, void 0, function* () {
+    const query = 'SELECT id, username, password, email, role, avatarurl FROM users WHERE username = :username';
+    const results = yield db.run_query(query, { username });
+    return results !== null && results !== void 0 ? results : [];
+});
+exports.findByUsername = findByUsername;
+const getByEmail = (email) => __awaiter(void 0, void 0, void 0, function* () {
+    const query = 'SELECT id, username, password, email, role, avatarurl FROM users WHERE email = :email';
+    const results = yield db.run_query(query, { email });
+    return results !== null && results !== void 0 ? results : [];
+});
+exports.getByEmail = getByEmail;
 const add = (user) => __awaiter(void 0, void 0, void 0, function* () {
-    let keys = Object.keys(user);
-    let values = Object.values(user);
-    let key = keys.join(',');
-    let parm = '';
-    for (let i = 0; i < values.length; i++) {
-        parm += '?,';
+    const { username, password, email, role, avatarurl, signupCode } = user;
+    console.log('Received signupCode:', signupCode);
+    if ((signupCode === null || signupCode === void 0 ? void 0 : signupCode.toUpperCase()) !== 'WANDERLUST2025') {
+        throw new Error('Invalid signup code');
     }
-    parm = parm.slice(0, -1);
-    let query = `INSERT INTO users (${key}) VALUES (${parm})`;
+    if (!username || !password || !email || !role) {
+        throw new Error('Missing required fields');
+    }
+    const existingUsers = yield (0, exports.findByUsername)(username);
+    const existingEmails = yield (0, exports.getByEmail)(email);
+    if (existingUsers.length > 0 || existingEmails.length > 0) {
+        throw new Error('User already exists');
+    }
+    const hashedPassword = yield bcrypt_1.default.hash(password, 10);
+    const query = 'INSERT INTO users (username, password, email, role, avatarurl) VALUES (:username, :password, :email, :role, :avatarurl) RETURNING id';
     try {
-        yield db.run_query(query, values);
-        return { "status": 201 };
+        const result = yield db.run_insert(query, {
+            username,
+            password: hashedPassword,
+            email,
+            role,
+            avatarurl: avatarurl || null,
+        });
+        return result.id;
     }
     catch (error) {
-        return error;
+        throw new Error(`Failed to add user: ${error.message}`);
     }
 });
 exports.add = add;
-const findByUsername = (username) => __awaiter(void 0, void 0, void 0, function* () {
-    const query = 'SELECT * FROM users where username = ?';
-    const user = yield db.run_query(query, [username]);
-    return user;
-});
-exports.findByUsername = findByUsername;
 const update = (user, id) => __awaiter(void 0, void 0, void 0, function* () {
-    //console.log("user " , user)
-    // console.log("id ",id)
-    let keys = Object.keys(user);
-    let values = Object.values(user);
-    let updateString = "";
-    for (let i = 0; i < values.length; i++) {
-        updateString += keys[i] + "=" + "'" + values[i] + "'" + ",";
-    }
-    updateString = updateString.slice(0, -1);
-    // console.log("updateString ", updateString)
-    let query = `UPDATE users SET ${updateString} WHERE ID=${id} RETURNING *;`;
+    const keys = Object.keys(user).filter((k) => k !== 'id');
+    if (keys.length === 0)
+        return { status: 400 };
+    const setClause = keys.map((key) => `${key} = :${key}`).join(', ');
+    const values = keys.reduce((acc, key) => (Object.assign(Object.assign({}, acc), { [key]: user[key] })), { id: id.toString() });
+    const query = `UPDATE users SET ${setClause} WHERE id = :id`;
     try {
-        yield db.run_query(query, values);
-        return { "status": 201 };
+        yield db.run_update(query, values);
+        return { status: 201 };
     }
     catch (error) {
-        return error;
+        throw new Error(`Failed to update user: ${error.message}`);
     }
 });
 exports.update = update;
 const deleteById = (id) => __awaiter(void 0, void 0, void 0, function* () {
-    let query = "Delete FROM users WHERE ID = ?";
-    let values = [id];
+    const query = 'DELETE FROM users WHERE id = :id';
     try {
-        yield db.run_query(query, values);
-        return { "affectedRows": 1 };
+        const result = yield db.run_delete(query, { id: id.toString() });
+        return { affectedRows: result.rowCount };
     }
     catch (error) {
-        return error;
+        throw new Error(`Failed to delete user: ${error.message}`);
     }
 });
 exports.deleteById = deleteById;

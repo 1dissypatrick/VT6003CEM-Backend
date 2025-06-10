@@ -46,190 +46,158 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.router = void 0;
-const auth_1 = require("../controllers/auth");
-const validation_1 = require("../controllers/validation");
 const koa_router_1 = __importDefault(require("koa-router"));
 const koa_bodyparser_1 = __importDefault(require("koa-bodyparser"));
+const validation_1 = require("../controllers/validation");
+const user_schema_1 = require("../schema/user.schema");
 const model = __importStar(require("../models/users"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const auth_1 = require("../controllers/auth");
 const prefix = '/api/v1/users';
-const router = new koa_router_1.default({ prefix: prefix });
+const router = new koa_router_1.default({ prefix });
 exports.router = router;
+/**
+ * Get all users (operator only).
+ */
 const getAll = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    let users = yield model.getAll(20, 1);
-    if (users.length) {
-        ctx.body = users;
+    const { limit = '20', page = '1' } = ctx.request.query;
+    const limitNum = parseInt(limit, 10);
+    const pageNum = parseInt(page, 10);
+    const users = yield model.getAll(limitNum, pageNum);
+    ctx.body = users;
+    yield next();
+});
+/**
+ * Search users by field (operator only).
+ */
+const doSearch = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const { limit = '50', page = '1', fields = '', q = '' } = ctx.request.query;
+    let limitNum = parseInt(limit, 10);
+    let pageNum = parseInt(page, 10);
+    limitNum = limitNum > 200 ? 200 : limitNum < 1 ? 10 : limitNum;
+    pageNum = pageNum < 1 ? 1 : pageNum;
+    if (((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.role) === 'operator') {
+        let result;
+        if (q) {
+            result = yield model.getSearch(fields, q);
+        }
+        else {
+            result = yield model.getAll(limitNum, pageNum);
+        }
+        if (result.length && fields) {
+            const fieldArray = Array.isArray(fields) ? fields : [fields];
+            const filteredResult = result.map((record) => {
+                const partial = {};
+                for (const field of fieldArray) {
+                    if (field in record) {
+                        partial[field] = record[field]; // Use type assertion if necessary
+                    }
+                }
+                return partial;
+            });
+            ctx.body = filteredResult;
+        }
+        else {
+            ctx.body = result;
+        }
     }
     else {
-        ctx.body = {};
+        ctx.status = 401;
+        ctx.body = { error: `${((_b = ctx.state.user) === null || _b === void 0 ? void 0 : _b.role) || 'unauthenticated'} role is not authorized` };
     }
     yield next();
 });
-const doSearch = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    let { limit = 50, page = 1, fields = "", q = "" } = ctx.request.query;
-    // ensure params are integers
-    limit = parseInt(limit);
-    page = parseInt(page);
-    // validate values to ensure they are sensible
-    limit = limit > 200 ? 200 : limit;
-    limit = limit < 1 ? 10 : limit;
-    page = page < 1 ? 1 : page;
-    let result;
-    // search by single field and field contents
-    // need to validate q input
-    if (ctx.state.user.user.role === 'admin') {
+/**
+ * Get a user by ID.
+ */
+const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
+    const id = parseInt(ctx.params.id, 10);
+    if (((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.role) === 'operator' || ((_b = ctx.state.user) === null || _b === void 0 ? void 0 : _b.id) === id) {
+        const user = yield model.getByUserId(id);
+        if (user) {
+            ctx.body = user;
+        }
+        else {
+            ctx.status = 404;
+            ctx.body = { error: 'User not found' };
+        }
+    }
+    else {
+        ctx.status = 401;
+        ctx.body = { error: `${((_c = ctx.state.user) === null || _c === void 0 ? void 0 : _c.role) || 'unauthenticated'} role is not authorized` };
+    }
+    yield next();
+});
+/**
+ * Create a new operator.
+ */
+const createUser = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    yield (0, auth_1.register)(ctx, next);
+});
+/**
+ * Update a user by ID.
+ */
+const updateUser = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const id = parseInt(ctx.params.id, 10);
+    const userData = ctx.request.body;
+    if (((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.role) === 'operator' || ((_b = ctx.state.user) === null || _b === void 0 ? void 0 : _b.id) === id) {
         try {
-            if (q !== "")
-                result = yield model.getSearch(fields, q);
-            else {
-                console.log('get all');
-                result = yield model.getAll(limit, page);
-                console.log(result);
+            const result = yield model.update(userData, id);
+            if (result.status === 201) {
+                ctx.status = 201;
+                ctx.body = { message: `User with id ${id} updated` };
             }
-            if (result.length) {
-                if (fields !== "") {
-                    // first ensure the fields are contained in an array
-                    // need this since a single field in the query is passed as a string
-                    console.log('fields' + fields);
-                    if (!Array.isArray(fields)) {
-                        fields = [fields];
-                    }
-                    // then filter each row in the array of results
-                    // by only including the specified fields
-                    result = result.map((record) => {
-                        let partial = {};
-                        for (let field of fields) {
-                            partial[field] = record[field];
-                        }
-                        return partial;
-                    });
-                }
-                console.log(result);
-                ctx.body = result;
+            else {
+                ctx.status = 404;
+                ctx.body = { error: 'User not found' };
             }
         }
         catch (error) {
-            return error;
-        }
-        yield next();
-    }
-    else {
-        ctx.body = { msg: ` ${ctx.state.user.user.role} role is not authorized` };
-        ctx.status = 401;
-    }
-});
-const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    let id = ctx.params.id;
-    console.log('user.id ' + ctx.state.user.user.id);
-    console.log('params.id ' + id);
-    if (ctx.state.user.user.role === 'admin' || ctx.state.user.user.id == id) {
-        let user = yield model.getByUserId(id);
-        if (user.length) {
-            ctx.body = user[0];
+            ctx.status = 500;
+            ctx.body = { error: error.message };
         }
     }
     else {
-        ctx.body = { msg: ` ${ctx.state.user.user.role} role is not authorized` };
         ctx.status = 401;
+        ctx.body = { error: 'Profile records can be updated by its owner or operator role' };
     }
+    yield next();
 });
-const createUser = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const body = ctx.request.body;
-    let avatarurl = ' ';
-    if (body.avatarurl)
-        avatarurl = body.avatarurl;
-    let username = body.username;
-    const salt = bcryptjs_1.default.genSaltSync(10);
-    const hashpwd = bcryptjs_1.default.hashSync(`${body.password}`, salt);
-    let email = body.email;
-    let role = 'user';
-    let secretkey = body.actiCode;
-    let secretList = ["mongkok_123456789", "mongkok_987654321", "shatin_123456789", "shatin_987654321", "chaiwan_123456789", "chaiwan_987654321"];
-    if (secretkey) {
-        for (let i = 0; i < secretList.length; i++)
-            if (secretkey == secretList[i]) {
-                role = 'admin';
-                break;
-            }
-    }
-    console.log("role ", role);
-    let newUser = { username: username, password: hashpwd, passwordsalt: salt, email: email, avatarurl: avatarurl, role: role };
-    let result = yield model.add(newUser);
-    if (result) {
-        ctx.status = 201;
-        ctx.body = result;
-    }
-    else {
-        ctx.status = 201;
-        ctx.body = "{message:New user created}";
-    }
-});
-const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    // return any details needed by the client
-    const user = ctx.state.user;
-    // const { id, username, email, avatarurl, role } =ctx.state.user;
-    const id = user.user.id;
-    const username = user.user.username;
-    const email = user.user.email;
-    const avatarurl = user.user.avatarurl;
-    const about = user.user.about;
-    const role = user.user.role;
-    const links = {
-        self: `http://${ctx.host}${prefix}/${id}`,
-    };
-    ctx.body = { id, username, email, about, avatarurl, role, links };
-});
-const updateUser = (ctx) => __awaiter(void 0, void 0, void 0, function* () {
-    let id = +ctx.params.id;
-    let c = ctx.request.body;
-    let pwd = c.password;
-    let hash = ctx.state.user.user.password;
-    if (pwd == '') // No update pwd  input
-     {
-        //console.log('hash '+hash)
-        c.password = hash;
-        //console.log('c.password '+c.password)
-    }
-    if (!bcryptjs_1.default.compareSync(pwd, hash) && pwd != '') //Encrypte & update  new pwd 
-     {
-        const salt = bcryptjs_1.default.genSaltSync(10);
-        const hashpwd = bcryptjs_1.default.hashSync(`${pwd}`, salt);
-        // console.log('hashpwd  '+ hashpwd )
-        c.password = hashpwd;
-        // console.log('hashpwd  '+ c.password )
-    }
-    else {
-        c.password = hash;
-    } // New pwd = old pwd
-    if (ctx.state.user.user.role === 'admin' || ctx.state.user.user.id == id) {
-        let result = yield model.update(c, id);
-        if (result) {
-            ctx.status = 201;
-            ctx.body = `User with id ${id} updated`;
-        }
-    }
-    else {
-        ctx.body = { msg: ' Profile records can be updated by its owner or admin role' };
-        ctx.status = 401;
-    }
-});
+/**
+ * Delete a user by ID.
+ */
 const deleteUser = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    let id = +ctx.params.id;
-    if (ctx.state.user.user.role === 'admin' || ctx.state.user.user.id == id) {
-        let user = yield model.deleteById(id);
-        ctx.status = 201;
-        ctx.body = `User with id ${id} deleted`;
-        yield next();
+    var _a, _b;
+    const id = parseInt(ctx.params.id, 10);
+    if (((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.role) === 'operator' || ((_b = ctx.state.user) === null || _b === void 0 ? void 0 : _b.id) === id) {
+        try {
+            const result = yield model.deleteById(id);
+            if (result.affectedRows) {
+                ctx.status = 201;
+                ctx.body = { message: `User with id ${id} deleted` };
+            }
+            else {
+                ctx.status = 404;
+                ctx.body = { error: 'User not found' };
+            }
+        }
+        catch (error) {
+            ctx.status = 500;
+            ctx.body = { error: error.message };
+        }
     }
     else {
-        ctx.body = { msg: ` ${ctx.state.user.user.role} role is not authorized` };
         ctx.status = 401;
+        ctx.body = { error: 'Profile records can be deleted by its owner or operator role' };
     }
+    yield next();
 });
-router.get('/', auth_1.basicAuth, doSearch);
-//router.get('/search', basicAuth, doSearch);
-router.post('/', (0, koa_bodyparser_1.default)(), validation_1.validateUser, createUser);
-router.get('/:id([0-9]{1,})', auth_1.basicAuth, getById);
-router.put('/:id([0-9]{1,})', auth_1.basicAuth, (0, koa_bodyparser_1.default)(), updateUser);
-router.del('/:id([0-9]{1,})', auth_1.basicAuth, deleteUser);
-router.post('/login', auth_1.basicAuth, login);
+router.get('/', auth_1.authMiddleware, auth_1.operatorOnly, getAll);
+router.get('/search', auth_1.authMiddleware, auth_1.operatorOnly, doSearch);
+router.post('/', (0, koa_bodyparser_1.default)(), createUser);
+router.get('/:id([0-9]{1,})', auth_1.authMiddleware, getById);
+router.put('/:id([0-9]{1,})', auth_1.authMiddleware, (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(user_schema_1.userSchema), updateUser);
+router.delete('/:id([0-9]{1,})', auth_1.authMiddleware, deleteUser);
+router.post('/login', (0, koa_bodyparser_1.default)(), auth_1.login);

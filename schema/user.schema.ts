@@ -1,31 +1,26 @@
-export const user = {
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "id": "/user",
-  "title": "User",
-  "description": "A user/staff in the blog",
-  "type": "object",
-  "properties": {
-    "username": {
-      "description": "username of blog account",
-      "type": "string"
-    },
-    "email": {
-      "description": "email of user",
-      "type": "string"
-    },
-    "password": {
-      "description": "email of user",
-      "type": "password"
-    },
-    "avatarurl": {
-      "description": "avatar of user",
-      "type": "uri"
-    },
-    "role": {
-      "description": "role of user",
-      "type": "string"
-    },
-    
-  },
-  "required": ["username", "password", "email"]
+export interface User {
+  id: number;
+  username: string;
+  password: string;
+  email: string;
+  role: 'operator' | 'user';
+  avatarurl?: string;
+  signupCode?: string;
 }
+
+export const userSchema = {
+  type: 'object',
+  required: ['username', 'password', 'email', 'role', 'signupCode'],
+  properties: {
+    username: { type: 'string', minLength: 3, maxLength: 255 },
+    password: { type: 'string', minLength: 8, maxLength: 255 },
+    email: {
+      type: 'string',
+      pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
+    },
+    role: { type: 'string', enum: ['operator', 'user'] },
+    signupCode: { type: 'string', const: 'WANDERLUST2025' },
+    avatarurl: { type: 'string', maxLength: 255 },
+  },
+  additionalProperties: false,
+};

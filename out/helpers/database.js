@@ -9,40 +9,88 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.run_insert = exports.run_query = void 0;
+exports.sequelize = void 0;
+exports.testConnection = testConnection;
+exports.run_query = run_query;
+exports.run_insert = run_insert;
+exports.run_update = run_update;
+exports.run_delete = run_delete;
 const sequelize_1 = require("sequelize");
 const config_1 = require("../config");
-const run_query = (query, values) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const sequelize = new sequelize_1.Sequelize(`postgres://${config_1.config.user}:${config_1.config.password}@${config_1.config.host}:${config_1.config.port}/${config_1.config.database}`);
-        yield sequelize.authenticate();
-        let data = yield sequelize.query(query, {
-            replacements: values,
-            type: sequelize_1.QueryTypes.SELECT
-        });
-        yield sequelize.close();
-        return data;
-    }
-    catch (err) {
-        console.error(err, query, values);
-        throw 'Database query error';
-    }
+exports.sequelize = new sequelize_1.Sequelize(config_1.config.database, config_1.config.user, config_1.config.password, {
+    host: config_1.config.host,
+    port: config_1.config.port,
+    dialect: 'postgres',
+    logging: false,
 });
-exports.run_query = run_query;
-const run_insert = (sql, values) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const sequelize = new sequelize_1.Sequelize(`postgres://${config_1.config.user}:${config_1.config.password}@${config_1.config.host}:${config_1.config.port}/${config_1.config.database}`);
-        yield sequelize.authenticate();
-        let data = yield sequelize.query(sql, {
-            replacements: values,
-            type: sequelize_1.QueryTypes.INSERT
-        });
-        yield sequelize.close();
-        return data;
-    }
-    catch (err) {
-        console.error(err, sql, values);
-        throw 'Database insert error';
-    }
-});
-exports.run_insert = run_insert;
+function testConnection() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield exports.sequelize.authenticate();
+            console.log('Database connection established successfully');
+        }
+        catch (error) {
+            console.error('Unable to connect to the database:', error);
+            throw error;
+        }
+    });
+}
+function run_query(query, values) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const options = {
+                replacements: values,
+                type: 'SELECT',
+            };
+            console.log('Executing query:', query, 'with values:', values);
+            const [results] = yield exports.sequelize.query(query, options);
+            return (results !== null && results !== void 0 ? results : []);
+        }
+        catch (error) {
+            console.error(`Query failed: ${query}`, 'Values:', values, 'Error:', error);
+            throw error;
+        }
+    });
+}
+function run_insert(query, values) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const options = { replacements: values, type: 'INSERT' };
+            console.log('Executing insert:', query, 'with values:', values);
+            const [results] = yield exports.sequelize.query(query, options);
+            return results[0];
+        }
+        catch (error) {
+            console.error(`Insert failed: ${query}`, 'Values:', values, 'Error:', error);
+            throw error;
+        }
+    });
+}
+function run_update(query, values) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const options = { replacements: values, type: 'UPDATE' };
+            console.log('Executing update:', query, 'with values:', values);
+            const [results] = yield exports.sequelize.query(query, options);
+            return results;
+        }
+        catch (error) {
+            console.error(`Update failed: ${query}`, 'Values:', values, 'Error:', error);
+            throw error;
+        }
+    });
+}
+function run_delete(query, values) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const options = { replacements: values, type: 'DELETE' };
+            console.log('Executing delete:', query, 'with values:', values);
+            const [, metadata] = yield exports.sequelize.query(query, options);
+            return { rowCount: metadata.rowCount || 0 };
+        }
+        catch (error) {
+            console.error(`Delete failed: ${query}`, 'Values:', values, 'Error:', error);
+            throw error;
+        }
+    });
+}

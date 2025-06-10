@@ -1,44 +1,38 @@
-import { Validator, ValidationError } from 'jsonschema';
-import { RouterContext } from 'koa-router';
-import { article } from '../schema/article.schema';
-import { user } from '../schema/user.schema';
+import { Context, Next } from 'koa';
+import addFormats from 'ajv-formats';
+import Ajv from 'ajv';
 
-const v = new Validator()
-
-export const validateArticle = async (ctx: RouterContext, next: any) => {
-  const validationOptions = {
-    throwError: true,
-    allowUnknownAttributes: false
+const ajv = new Ajv({ allErrors: true, removeAdditional: true });
+addFormats(ajv);
+/**
+ * Validates data against a JSON schema.
+ * @param schema JSON schema
+ * @param data Data to validate
+ * @returns Validated data with type T
+ * @throws Error if validation fails
+ */
+export function validate<T>(schema: object, data: unknown): T {
+  const validate = ajv.compile(schema);
+  const valid = validate(data);
+  if (!valid) {
+    throw new Error(JSON.stringify(validate.errors));
   }
-  const body = ctx.request.body;
-  try {
-    v.validate(body, article, validationOptions)
-    await next()
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      ctx.body = error;
-      ctx.status = 400;
-    } else {
-      throw error;
-    }
-  }
+  return data as T;
 }
 
-export const validateUser = async (ctx: RouterContext, next: any) => {
-  const validationOptions = {
-    throwError: true,
-    allowUnknownAttributes: false
-  }
-  const body = ctx.request.body;
-  try {
-    v.validate(body, user, validationOptions)
-    await next()
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      ctx.body = error;
+/**
+ * Koa middleware for schema validation.
+ * @param schema JSON schema
+ * @returns Koa middleware function
+ */
+export const validateMiddleware = (schema: object) => {
+  const validate = ajv.compile(schema);
+  return async (ctx: Context, next: Next) => {
+    if (!validate(ctx.request.body)) {
       ctx.status = 400;
-    } else {
-      throw error;
+      ctx.body = { error: validate.errors?.map((err) => err.message).join(', ') || 'Validation failed' };
+      return;
     }
-  }
-}
+    await next();
+  };
+};

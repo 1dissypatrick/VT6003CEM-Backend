@@ -8,51 +8,46 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateUser = exports.validateArticle = void 0;
-const jsonschema_1 = require("jsonschema");
-const article_schema_1 = require("../schema/article.schema");
-const user_schema_1 = require("../schema/user.schema");
-const v = new jsonschema_1.Validator();
-const validateArticle = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const validationOptions = {
-        throwError: true,
-        allowUnknownAttributes: false
-    };
-    const body = ctx.request.body;
-    try {
-        v.validate(body, article_schema_1.article, validationOptions);
-        yield next();
+exports.validateMiddleware = void 0;
+exports.validate = validate;
+const ajv_formats_1 = __importDefault(require("ajv-formats"));
+const ajv_1 = __importDefault(require("ajv"));
+const ajv = new ajv_1.default({ allErrors: true, removeAdditional: true });
+(0, ajv_formats_1.default)(ajv);
+/**
+ * Validates data against a JSON schema.
+ * @param schema JSON schema
+ * @param data Data to validate
+ * @returns Validated data with type T
+ * @throws Error if validation fails
+ */
+function validate(schema, data) {
+    const validate = ajv.compile(schema);
+    const valid = validate(data);
+    if (!valid) {
+        throw new Error(JSON.stringify(validate.errors));
     }
-    catch (error) {
-        if (error instanceof jsonschema_1.ValidationError) {
-            ctx.body = error;
+    return data;
+}
+/**
+ * Koa middleware for schema validation.
+ * @param schema JSON schema
+ * @returns Koa middleware function
+ */
+const validateMiddleware = (schema) => {
+    const validate = ajv.compile(schema);
+    return (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
+        if (!validate(ctx.request.body)) {
             ctx.status = 400;
+            ctx.body = { error: ((_a = validate.errors) === null || _a === void 0 ? void 0 : _a.map((err) => err.message).join(', ')) || 'Validation failed' };
+            return;
         }
-        else {
-            throw error;
-        }
-    }
-});
-exports.validateArticle = validateArticle;
-const validateUser = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const validationOptions = {
-        throwError: true,
-        allowUnknownAttributes: false
-    };
-    const body = ctx.request.body;
-    try {
-        v.validate(body, user_schema_1.user, validationOptions);
         yield next();
-    }
-    catch (error) {
-        if (error instanceof jsonschema_1.ValidationError) {
-            ctx.body = error;
-            ctx.status = 400;
-        }
-        else {
-            throw error;
-        }
-    }
-});
-exports.validateUser = validateUser;
+    });
+};
+exports.validateMiddleware = validateMiddleware;

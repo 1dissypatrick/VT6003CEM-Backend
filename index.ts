@@ -1,52 +1,41 @@
-import Koa from "koa";
-import Router, { RouterContext }  from "koa-router";
-import logger from "koa-logger";
-import json from "koa-json";
-import passport from 'koa-passport';
-import bodyParser from "koa-bodyparser";
-import cors from '@koa/cors' ;
-import { router as articles } from "./routes/articles";
-import { router as special } from './routes/special';
-import { router as uploads } from './routes/uploads';
-import { router as users } from "./routes/users";
+import 'dotenv/config';
+import Koa from 'koa';
+import Router from 'koa-router';
+import logger from 'koa-logger';
+import json from 'koa-json';
+import bodyParser from 'koa-bodyparser';
+import cors from '@koa/cors';
+import { router as userRouter } from './routes/users';
+import { router as hotels } from './routes/hotels';
 import serve from 'koa-static';
 
 const app: Koa = new Koa();
 const router: Router = new Router();
 
-/*const welcomeAPI = async (ctx: RouterContext, next:any) => {
-  ctx.body = {message: "Welcome to the blog API!"};
-  await next();
-}
-
-router.get('/api/v1', welcomeAPI);
-*/
-// For Document:
 app.use(serve('./docs'));
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:3000' }));
 app.use(logger());
 app.use(json());
 app.use(bodyParser());
 app.use(router.routes());
-app.use(passport.initialize());
-app.use(articles.middleware());
-app.use(special.middleware());
-app.use(uploads.middleware());
-app.use(users.middleware());
+app.use(userRouter.middleware());
+app.use(hotels.middleware());
 
-app.use(async (ctx: RouterContext, next: any) => {
+app.use(async (ctx: any, next: any) => {
   try {
     await next();
-    console.log(ctx.status)
-    if(ctx.status === 404){
-      ctx.body = {err: "No such endpoint existed"};
+    if (ctx.status === 404) {
+      ctx.body = { error: 'No such endpoint exists' };
     }
-  } catch(err: any) {
-    ctx.body = {err: err};
+  } catch (err: any) {
+    ctx.status = 500;
+    ctx.body = { error: err.message };
   }
-
 });
-let port = process.env.PORT || 10888;
-app.listen(10888, () => {
-console.log( `Koa Started at ${port}` );
-})
+
+const port = process.env.PORT || 10888;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
+export default app;

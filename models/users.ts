@@ -1,76 +1,93 @@
 import * as db from '../helpers/database';
+import { User } from '../schema/user.schema';
+import bcrypt from 'bcrypt';
 
-export const getAll = async  (limit=10, page=1) =>{
+export const getAll = async (limit: number = 20, page: number = 1): Promise<User[]> => {
   const offset = (page - 1) * limit;
-  const query = "SELECT * FROM users LIMIT  ? OFFSET  ?;";
-  const data = await db.run_query(query, [limit, offset]);
-  return data;
-}
+  const query = 'SELECT id, username, email, role, avatarurl FROM users LIMIT :limit OFFSET :offset';
+  const results = await db.run_query<User>(query, { limit: limit.toString(), offset: offset.toString() });
+  return results ?? [];
+};
 
-export const getSearch = async  (sfield:any,q:any) =>{
- const query = `SELECT ${sfield} FROM users WHERE ${sfield} LIKE '%${q}%' `;
- try{ const data = await db.run_query(query,null);
-  return data;}
-  catch(error) {
-    return error
-}
-}
+export const getSearch = async (fields: string | string[], search: string): Promise<User[]> => {
+  const fieldArray = Array.isArray(fields) ? fields : [fields];
+  const validFields = fieldArray.filter((f) => ['username', 'email', 'role'].includes(f));
+  if (!validFields.length) return [];
+  const conditions = validFields.map((f) => `${f} ILIKE :search`).join(' OR ');
+  const query = `SELECT id, username, email, role, avatarurl FROM users WHERE ${conditions}`;
+  const results = await db.run_query<User>(query, { search: `%${search}%` });
+  return results ?? [];
+};
 
-export const getByUserId = async  (id:number) =>{
-  let query = "SELECT * FROM users WHERE id = ?"
-  let values = [id]
-  let data = await db.run_query(query, values)
-  return data
-}
+export const getByUserId = async (id: number): Promise<User | null> => {
+  const query = 'SELECT id, username, email, role, avatarurl FROM users WHERE id = :id';
+  const results = await db.run_query<User>(query, { id: id.toString() });
+  return results.length > 0 ? results[0] : null;
+};
 
-  export const add = async  (user:any) =>{  
-  let keys= Object.keys(user)
-  let values= Object.values(user)  
-  let key = keys.join(',')   
-  let parm = ''
-  for(let i =0; i<values.length; i++){ parm +='?,'}
-  parm=parm.slice(0,-1)
-  let query = `INSERT INTO users (${key}) VALUES (${parm})`
-  try{
-    await db.run_query(query, values)  
-    return {"status": 201}
-  } catch(error) {
-    return error
+export const findByUsername = async (username: string): Promise<User[]> => {
+  const query = 'SELECT id, username, password, email, role, avatarurl FROM users WHERE username = :username';
+  const results = await db.run_query<User>(query, { username });
+  return results ?? [];
+};
+
+export const getByEmail = async (email: string): Promise<User[]> => {
+  const query = 'SELECT id, username, password, email, role, avatarurl FROM users WHERE email = :email';
+  const results = await db.run_query<User>(query, { email });
+  return results ?? [];
+};
+
+export const add = async (user: Omit<User, 'id'> & { signupCode?: string }): Promise<number> => {
+  const { username, password, email, role, avatarurl, signupCode } = user;
+  console.log('Received signupCode:', signupCode);
+  if (signupCode?.toUpperCase() !== 'WANDERLUST2025') {
+    throw new Error('Invalid signup code');
   }
-}
-
-export const findByUsername = async (username: string) => {
-  const query = 'SELECT * FROM users where username = ?';
-  const user = await db.run_query(query,  [username] );
-  return user;
-}
-
-export const  update= async(user:any,id:any)  =>{  
-
-  //console.log("user " , user)
- // console.log("id ",id)
-  let keys = Object.keys(user)
-  let values = Object.values(user)  
-  let updateString=""
-  for(let i: number = 0; i<values.length;i++){updateString+=keys[i]+"="+"'"+values[i]+"'"+"," }
- updateString= updateString.slice(0, -1)
- // console.log("updateString ", updateString)
-  let query = `UPDATE users SET ${updateString} WHERE ID=${id} RETURNING *;`
-  try{
-   await db.run_query(query, values)  
-    return {"status": 201}
-  } catch(error) {
-    return error
+  if (!username || !password || !email || !role) {
+    throw new Error('Missing required fields');
   }
-}
-
-export const deleteById = async (id:any) => {
-  let query = "Delete FROM users WHERE ID = ?"
-  let values = [id]
-  try{
-    await db.run_query(query, values);  
-    return { "affectedRows":1 }
-  } catch(error) {
-    return error
+  const existingUsers = await findByUsername(username);
+  const existingEmails = await getByEmail(email);
+  if (existingUsers.length > 0 || existingEmails.length > 0) {
+    throw new Error('User already exists');
   }
-}
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const query =
+    'INSERT INTO users (username, password, email, role, avatarurl) VALUES (:username, :password, :email, :role, :avatarurl) RETURNING id';
+  try {
+    const result = await db.run_insert<{ id: number }>(query, {
+      username,
+      password: hashedPassword,
+      email,
+      role,
+      avatarurl: avatarurl || null,
+    });
+    return result.id;
+  } catch (error) {
+    throw new Error(`Failed to add user: ${(error as Error).message}`);
+  }
+};
+
+export const update = async (user: Partial<User>, id: number): Promise<{ status: number }> => {
+  const keys = Object.keys(user).filter((k) => k !== 'id') as (keyof Omit<User, 'id'>)[];
+  if (keys.length === 0) return { status: 400 };
+  const setClause = keys.map((key) => `${key} = :${key}`).join(', ');
+  const values = keys.reduce((acc, key) => ({ ...acc, [key]: user[key] }), { id: id.toString() });
+  const query = `UPDATE users SET ${setClause} WHERE id = :id`;
+  try {
+    await db.run_update(query, values);
+    return { status: 201 };
+  } catch (error) {
+    throw new Error(`Failed to update user: ${(error as Error).message}`);
+  }
+};
+
+export const deleteById = async (id: number): Promise<{ affectedRows: number }> => {
+  const query = 'DELETE FROM users WHERE id = :id';
+  try {
+    const result = await db.run_delete(query, { id: id.toString() });
+    return { affectedRows: result.rowCount };
+  } catch (error) {
+    throw new Error(`Failed to delete user: ${(error as Error).message}`);
+  }
+};

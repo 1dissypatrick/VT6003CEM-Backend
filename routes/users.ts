@@ -1,202 +1,152 @@
-import { basicAuth } from '../controllers/auth';
-import { validateUser } from "../controllers/validation";
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
+import { validateMiddleware } from '../controllers/validation';
+import { userSchema } from '../schema/user.schema';
 import * as model from '../models/users';
-import bcrypt from "bcryptjs";
+import { authMiddleware, operatorOnly, register, login } from '../controllers/auth';
+import { Context, Next } from 'koa';
+import { User } from '../schema/user.schema';
 
 const prefix = '/api/v1/users';
-const router:Router = new Router({ prefix: prefix });
+const router: Router = new Router({ prefix });
 
-const getAll = async(ctx: any, next: any) =>{  
- 
-    let users = await model.getAll(20, 1);
-    if (users.length) {
-      ctx.body = users;
-    }
-      else {
-        ctx.body = {};
-      }
-      await next();
-  
-  }
+/**
+ * Get all users (operator only).
+ */
+const getAll = async (ctx: Context, next: Next) => {
+  const { limit = '20', page = '1' } = ctx.request.query;
+  const limitNum = parseInt(limit as string, 10);
+  const pageNum = parseInt(page as string, 10);
+  const users = await model.getAll(limitNum, pageNum);
+  ctx.body = users;
+  await next();
+};
 
-const doSearch = async(ctx: any, next: any) =>{
-  
-    let { limit = 50, page = 1, fields = "", q = "" } = ctx.request.query;
-    // ensure params are integers
-    limit = parseInt(limit);
-    page = parseInt(page);
-    // validate values to ensure they are sensible
-    limit = limit > 200 ? 200 : limit;
-    limit = limit < 1 ? 10 : limit;
-    page = page < 1 ? 1 : page;
-    let result:any;
-    // search by single field and field contents
-    // need to validate q input
-if(ctx.state.user.user.role==='admin') { 
-   try{
-    if (q !== "") 
-      result = await model.getSearch(fields, q);     
-    else
-    {console.log('get all')
-      result = await model.getAll(limit, page);
-     console.log(result)
+/**
+ * Search users by field (operator only).
+ */
+const doSearch = async (ctx: Context, next: Next) => {
+  const { limit = '50', page = '1', fields = '', q = '' } = ctx.request.query;
+  let limitNum = parseInt(limit as string, 10);
+  let pageNum = parseInt(page as string, 10);
+  limitNum = limitNum > 200 ? 200 : limitNum < 1 ? 10 : limitNum;
+  pageNum = pageNum < 1 ? 1 : pageNum;
+
+  if (ctx.state.user?.role === 'operator') {
+    let result: User[];
+    if (q) {
+      result = await model.getSearch(fields as string | string[], q as string);
+    } else {
+      result = await model.getAll(limitNum, pageNum);
     }
-      
-    if (result.length) {
-      if (fields !== "") {
-        // first ensure the fields are contained in an array
-        // need this since a single field in the query is passed as a string
-        console.log('fields'+fields)
-        if (!Array.isArray(fields)) {
-          fields = [fields];
-        }
-        // then filter each row in the array of results
-        // by only including the specified fields
-        result = result.map((record: any) => {
-          let partial: any = {};
-          for (let field of fields) {
-            partial[field] = record[field];
+    if (result.length && fields) {
+      const fieldArray = Array.isArray(fields) ? fields : [fields];
+      const filteredResult: Partial<User>[] = result.map((record: User) => {
+        const partial: Partial<User> = {};
+        for (const field of fieldArray as (keyof User)[]) {
+          if (field in record) {
+            partial[field] = record[field] as any; // Use type assertion if necessary
           }
-          return partial;
-        });
-      }
-      console.log(result)
+        }
+        return partial;
+      });
+      ctx.body = filteredResult;
+    } else {
       ctx.body = result;
     }
-  }
-    catch(error) {
-      return error
-    }
-   await next();
-  }
-  else {    
-    ctx.body = { msg: ` ${ctx.state.user.user.role} role is not authorized`};
-    ctx.status = 401;
-} 
-}
-
-  const getById = async(ctx: any, next: any) =>{
-  let id = ctx.params.id;
-  console.log('user.id '+ctx.state.user.user.id);
-  console.log('params.id '+id );
-  if(ctx.state.user.user.role==='admin'||ctx.state.user.user.id==id) {
-  let user = await model.getByUserId(id);
-  if (user.length) {
-    ctx.body = user[0];
-  }
-}
-else {    
-  ctx.body = { msg: ` ${ctx.state.user.user.role} role is not authorized`};
-  ctx.status = 401;
-} 
-}
-
-  const createUser = async(ctx: any, next: any) =>{
-  const body = ctx.request.body;
-    let avatarurl:string=' '
-    if(body.avatarurl)
-      avatarurl=body.avatarurl;
-    let username:string= body.username;
-    const salt = bcrypt.genSaltSync(10);
-    const hashpwd = bcrypt.hashSync(`${body.password}`, salt);
-    let email:any = body.email;
-    let role:string = 'user';
-    let secretkey:string = body.actiCode;
-    let secretList:string[]= ["mongkok_123456789", "mongkok_987654321","shatin_123456789","shatin_987654321","chaiwan_123456789","chaiwan_987654321" ]
-     if(secretkey)
-     {for(let i=0;i<secretList.length;i++)
-       if(secretkey==secretList[i])
-       {role='admin'
-        break;
-       }
-     }
-     
-    console.log("role ", role)
-    let newUser = {username: username,  password: hashpwd, passwordsalt:salt, email: email, avatarurl: avatarurl, role: role};
-    
-  let result = await model.add(newUser);
-  if (result) {
-    ctx.status = 201;
-    ctx.body = result;
   } else {
-    ctx.status = 201;
-    ctx.body = "{message:New user created}";
+    ctx.status = 401;
+    ctx.body = { error: `${ctx.state.user?.role || 'unauthenticated'} role is not authorized` };
   }
-}
+  await next();
+};
 
-  const login = async(ctx: any, next: any) =>{
-  // return any details needed by the client
-    const user = ctx.state.user;
- // const { id, username, email, avatarurl, role } =ctx.state.user;
-    const id:number =user.user.id;
-    const username:string =user.user.username;
-    const email:string =user.user.email;
-    const avatarurl:string =user.user.avatarurl;
-    const about:string =user.user.about;
-    const role:string =user.user.role;
-    const links = {
-    self: `http://${ctx.host}${prefix}/${id}`,
-  };
-  ctx.body = { id, username, email, about, avatarurl, role, links };
-}
-
-const updateUser = async(ctx: any, ) =>{
-  let id = +ctx.params.id;
-  let c: any = ctx.request.body; 
-  let pwd:any = c.password
-  let hash:any = ctx.state.user.user.password
-  
-  if(pwd=='') // No update pwd  input
-  { 
-    //console.log('hash '+hash)
-    c.password=hash
-    //console.log('c.password '+c.password)
+/**
+ * Get a user by ID.
+ */
+const getById = async (ctx: Context, next: Next) => {
+  const id = parseInt(ctx.params.id, 10);
+  if (ctx.state.user?.role === 'operator' || ctx.state.user?.id === id) {
+    const user = await model.getByUserId(id);
+    if (user) {
+      ctx.body = user;
+    } else {
+      ctx.status = 404;
+      ctx.body = { error: 'User not found' };
+    }
+  } else {
+    ctx.status = 401;
+    ctx.body = { error: `${ctx.state.user?.role || 'unauthenticated'} role is not authorized` };
   }
-  if (!bcrypt.compareSync(pwd, hash)&&pwd!= '') //Encrypte & update  new pwd 
-  { const salt = bcrypt.genSaltSync(10);
-    const hashpwd = bcrypt.hashSync(`${pwd}`, salt);
-   // console.log('hashpwd  '+ hashpwd )
-    c.password= hashpwd;
-  // console.log('hashpwd  '+ c.password )
+  await next();
+};
+
+/**
+ * Create a new operator.
+ */
+const createUser = async (ctx: Context, next: Next) => {
+  await register(ctx, next);
+};
+
+/**
+ * Update a user by ID.
+ */
+const updateUser = async (ctx: Context, next: Next) => {
+  const id = parseInt(ctx.params.id, 10);
+  const userData = ctx.request.body as Partial<User>;
+  if (ctx.state.user?.role === 'operator' || ctx.state.user?.id === id) {
+    try {
+      const result = await model.update(userData, id);
+      if (result.status === 201) {
+        ctx.status = 201;
+        ctx.body = { message: `User with id ${id} updated` };
+      } else {
+        ctx.status = 404;
+        ctx.body = { error: 'User not found' };
+      }
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { error: (error as Error).message };
+    }
+  } else {
+    ctx.status = 401;
+    ctx.body = { error: 'Profile records can be updated by its owner or operator role' };
   }
-  else { c.password=hash} // New pwd = old pwd
-  
-  if(ctx.state.user.user.role==='admin'||ctx.state.user.user.id==id) { 
-  let result = await model.update(c,id)
-  if (result) {
-    ctx.status = 201
-    ctx.body = `User with id ${id} updated` 
-  } 
-}
-else {    
-  ctx.body = { msg: ' Profile records can be updated by its owner or admin role'};
-  ctx.status = 401;
-} 
-}
+  await next();
+};
 
-const deleteUser = async(ctx: any, next: any) =>{
-  let id = +ctx.params.id;  
-  if(ctx.state.user.user.role==='admin'||ctx.state.user.user.id==id) { 
-    let user = await model.deleteById(id)
-    ctx.status=201
-    ctx.body = `User with id ${id} deleted`
-    await next();
+/**
+ * Delete a user by ID.
+ */
+const deleteUser = async (ctx: Context, next: Next) => {
+  const id = parseInt(ctx.params.id, 10);
+  if (ctx.state.user?.role === 'operator' || ctx.state.user?.id === id) {
+    try {
+      const result = await model.deleteById(id);
+      if (result.affectedRows) {
+        ctx.status = 201;
+        ctx.body = { message: `User with id ${id} deleted` };
+      } else {
+        ctx.status = 404;
+        ctx.body = { error: 'User not found' };
+      }
+    } catch (error) {
+      ctx.status = 500;
+      ctx.body = { error: (error as Error).message };
+    }
+  } else {
+    ctx.status = 401;
+    ctx.body = { error: 'Profile records can be deleted by its owner or operator role' };
   }
-    else {    
-      ctx.body = { msg: ` ${ctx.state.user.user.role} role is not authorized`};
-      ctx.status = 401;
-  } 
-}
+  await next();
+};
 
+router.get('/', authMiddleware, operatorOnly, getAll);
+router.get('/search', authMiddleware, operatorOnly, doSearch);
+router.post('/', bodyParser(), createUser);
+router.get('/:id([0-9]{1,})', authMiddleware, getById);
+router.put('/:id([0-9]{1,})', authMiddleware, bodyParser(), validateMiddleware(userSchema), updateUser);
+router.delete('/:id([0-9]{1,})', authMiddleware, deleteUser);
+router.post('/login', bodyParser(), login);
 
-router.get('/', basicAuth, doSearch);
-//router.get('/search', basicAuth, doSearch);
-router.post('/', bodyParser(), validateUser, createUser);
-router.get('/:id([0-9]{1,})', basicAuth, getById);
-router.put('/:id([0-9]{1,})',basicAuth, bodyParser(),   updateUser);
-router.del('/:id([0-9]{1,})', basicAuth, deleteUser);
-router.post('/login', basicAuth, login);
-
-export {router};
+export { router };

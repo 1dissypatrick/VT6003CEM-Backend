@@ -1,273 +1,306 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
   version: 1.0.0
-  title: Back End Demonstration API
-  description: A simple blog API.
-  contact: 
+  title: Wanderlust Travel API
+  description: API for managing hotel listings and operator accounts.
+  contact:
     name: CY Cheng
     email: cycheng@vtc.edu.hk
   license:
     name: Apache 2.0
-    url: 'https://www.apache.org/licenses/LICENSE-2.0.html'
+    url: "https://www.apache.org/licenses/LICENSE-2.0.html"
 servers:
-  - url: 'https://feec368b-f2cd-4c78-ba6d-d66f03597562-00-2xj5l7c94qwox.sisko.repl.co:3000/api/v1'
-    description: Development server
+  - url: "http://localhost:10888/api/v1"
+    description: Local development server
 tags:
   - name: Users
     description: API endpoints for user management.
-  - name: Articles
-    description: Access and perform CRUD operations on blog entries.
-  - name: Login
-    description: login user account
-      
-
+  - name: Hotels
+    description: Access and perform CRUD operations on hotel listings.
+  - name: Auth
+    description: Authentication endpoints for operators.
 paths:
-  /users/{id}:
-    parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-        description: Numeric id of the user
+  /users:
     get:
       tags:
         - Users
-      description:
-        Get user by id.
+      description: Get all users (operator only)
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Number of records to display (default 20)
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Page number to display
+        - in: query
+          name: fields
+          schema:
+            type: string
+          description: Fields to display
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search criteria for username or email
+      security:
+        - bearerAuth: []
       responses:
-        '200':
-          description: user record.
+        "200":
+          description: List of users
           content:
             application/json:
               schema:
-               type: object
-               properties:              
-               $ref: ./user.json#/definitions/user
-        '404':
-          description: User was not found in the DB.
-    put:
-      tags:
-        - Users
-      description:
-        Update user by ID.
-      requestBody:
-        description: Modify user record
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: ./user.json#/definitions/user
-      responses:
-        '200':
-          description: View of an user record.
-        '404':
-          description: User was not found in the DB.
-    delete:
-      tags:
-        - Users
-      description:
-        Delete user by ID.
-      responses:
-        '200':
-          description: View of user record.
-        '404':
-          description: User was not found in the DB.
-
-  /users/:
-    parameters:
-    - in: query
-      name: limit
-      schema:
-        type: integer
-      description: no. of  records to display with 10 records/page
-    - in: query
-      name: page
-      schema:
-        type: integer
-      description: starting page no.to display
-    - in: query
-      name: fields
-      schema:
-        type: string
-      description: fields to display
-    - in: query
-      name: q
-      schema:
-        type: string
-      description: specifiy the search criteria  for either fields of username or email
-    get:
-      tags:
-        - Users
-      description: Get all users
-      responses:
-       '200':
-         description: OK
-         content:
-           application/json:
-             schema:
-               type: array               
-               $ref: ./user.json#/definitions/user
-       '404':
-         description: Not Found  
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not Found
     post:
       tags:
-       - Users
-      description: Create a new user
+        - Users
+      description: Create a new operator
       requestBody:
-        description: A new user data
+        description: Operator registration data
         required: true
         content:
           application/json:
             schema:
-              $ref: ./user.json#/definitions/user
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
-        '201':
-          description: User created
-        '400':
+        "201":
+          description: Operator created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  username:
+                    type: string
+                  role:
+                    type: string
+        "400":
           description: Bad request
-  
+        "403":
+          description: Invalid sign-up code
   /users/login:
     post:
       tags:
-       - Login
-      description: Login user account
+        - Auth
+      description: Login operator account
       requestBody:
-        description: login with username and password
+        description: Login with username and password
         required: true
         content:
           application/json:
             schema:
-             type: object
-             properties:
-              username:
-                type: string
-                description: The user name.
-              password:
-                type: string
-                description: The user password.
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              required: [username, password]
       responses:
-        '200':
-          description: user record.
+        "200":
+          description: Login successful
           content:
             application/json:
-             schema:
-               type: object
-               properties:   
-                 id:
-                   type: integer
-                   description: The id of user. 
-                 username:
-                   type: string
-                   description: The user name.
-                 email:
-                   type: string
-                   description: The user email.
-                 avataurl:
-                   type: string
-                   description: The user avatar url.
-                 role:
-                   type: string
-                   description: The user role.  
-                 links:
-                   type: uri
-                   description: The  link to user info by id.
-
-        '404':
-          description: User was not found in the DB.
-        
-  /articles/{id}:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  id:
+                    type: integer
+                  username:
+                    type: string
+                  role:
+                    type: string
+        "401":
+          description: Invalid credentials
+        "404":
+          description: User not found
+  /hotels:
+    get:
+      tags:
+        - Hotels
+      description: Get all hotels with optional search and filters
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Number of records to display (default 10)
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Page number to display
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by hotel name
+        - in: query
+          name: location
+          schema:
+            type: string
+          description: Filter by location
+        - in: query
+          name: minPrice
+          schema:
+            type: number
+          description: Minimum price filter
+        - in: query
+          name: maxPrice
+          schema:
+            type: number
+          description: Maximum price filter
+      responses:
+        "200":
+          description: List of hotels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Hotel"
+        "404":
+          description: Not Found
+    post:
+      tags:
+        - Hotels
+      description: Create a new hotel (operator only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        description: Hotel data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Hotel"
+      responses:
+        "201":
+          description: Hotel created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+  /hotels/{id}:
     parameters:
       - in: path
         name: id
         schema:
           type: integer
         required: true
-        description: Numeric id of the article
+        description: Numeric ID of the hotel
     get:
       tags:
-        - Articles
-      description:
-        Get article by id.
+        - Hotels
+      description: Get hotel by ID
       responses:
-        '200':
-          description: View of an article record.
-        '404':
-          description: Article was not found in the DB.
-    put:
-      tags:
-        - Articles
-      description:
-        Update article by ID.
-      requestBody:
-        description: A new article data
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: ./article.json#/definitions/article     
-      responses:
-        '200':
-          description: View of an article record.
-        '404':
-          description: Article was not found in the DB.
-    delete:
-      tags:
-        - Articles
-      description:
-        Delete article by ID.
-      responses:
-        '200':
-          description: View of an article record.
-        '404':
-          description: Article was not found in the DB.
-
-  /articles/: 
-    get:
-      tags:
-      - Articles
-      description: Get all articles
-      responses:
-        '200':
-          description: articles record.
+        "200":
+          description: Hotel record
           content:
             application/json:
-             schema:
-               type: object 
-               properties:   
-                 id:
-                   type: integer
-                   description: The id of article. 
-                 title:
-                   type: string
-                   description: The title of article.
-                 imageurl:
-                   type: string
-                   description: The link to image of article.
-                 summary:
-                   type: string
-                   description: summary of articles
-                 authorid:
-                   type: integer 
-                   description: The id of author.  
-                 links:
-                   type: uri array object
-                   description: include four links to likes,fav,msg and self with articleid respectively eg.articleid=1 [{"likes":"https://xxx:3000/api/v1/articles/1/likes"},{"fav":"https://xxx:3000/api/v1/articles/1/fav"},{"msg":"https://xxx:3000/api/v1/articles/1/msg"},{"self":"https:xxx:3000/api/v1/articles/1"}]
-          '404':
-            description: Not Found  
-    post:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+        "404":
+          description: Hotel not found
+    put:
       tags:
-       - Articles
-      description: Create a new article
+        - Hotels
+      description: Update hotel by ID (operator only)
+      security:
+        - bearerAuth: []
       requestBody:
-        description: A new article data
+        description: Hotel data
         required: true
         content:
           application/json:
             schema:
-              $ref: ./article.json#/definitions/article
+              $ref: "#/components/schemas/Hotel"
       responses:
-        '201':
-          description: Articles created
-        '400':
-          description: Bad request
+        "200":
+          description: Hotel updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Hotel not found
+    delete:
+      tags:
+        - Hotels
+      description: Delete hotel by ID (operator only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Hotel deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Hotel not found
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        avatarurl:
+          type: string
+        role:
+          type: string
+      required: [username, email, role]
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        signupCode:
+          type: string
+        email:
+          type: string
+      required: [username, password, signupCode, email]
+    Hotel:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        price:
+          type: number
+        availability:
+          type: boolean
+      required: [name, location, price, availability]
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
