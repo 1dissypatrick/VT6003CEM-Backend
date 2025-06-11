@@ -1,11 +1,4 @@
 "use strict";
-// import { Context, Next } from 'koa';
-// import bcrypt from 'bcrypt';
-// import jwt from 'jsonwebtoken';
-// import { validate } from './validation';
-// import { registerSchema, loginSchema, RegisterData, LoginData } from '../schema/auth';
-// import { findByUsername, add } from '../models/users';
-// import { User } from '../schema/user.schema';
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -66,13 +59,21 @@ const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, password } = (0, validation_1.validate)(auth_1.loginSchema, ctx.request.body);
         const users = yield (0, users_1.findByUsername)(username);
-        if (users.length === 0) {
+        console.log('Users found:', users);
+        if (!Array.isArray(users) || users.length === 0) {
             ctx.status = 404;
             ctx.body = { error: 'User not found' };
             return;
         }
         const user = users[0];
+        if (!user || !user.password) {
+            ctx.status = 404;
+            ctx.body = { error: 'User data incomplete' };
+            return;
+        }
+        console.log('Comparing password:', password, 'with hashed:', user.password); // Add this
         const isValid = yield bcrypt_1.default.compare(password, user.password);
+        console.log('Password valid:', isValid); // Add this
         if (!isValid) {
             ctx.status = 401;
             ctx.body = { error: 'Invalid password' };

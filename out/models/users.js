@@ -41,13 +41,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteById = exports.update = exports.add = exports.getByEmail = exports.findByUsername = exports.getByUserId = exports.getSearch = exports.getAll = void 0;
 const db = __importStar(require("../helpers/database"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
 const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (limit = 20, page = 1) {
     const offset = (page - 1) * limit;
     const query = 'SELECT id, username, email, role, avatarurl FROM users LIMIT :limit OFFSET :offset';
@@ -74,8 +70,9 @@ const getByUserId = (id) => __awaiter(void 0, void 0, void 0, function* () {
 exports.getByUserId = getByUserId;
 const findByUsername = (username) => __awaiter(void 0, void 0, void 0, function* () {
     const query = 'SELECT id, username, password, email, role, avatarurl FROM users WHERE username = :username';
-    const results = yield db.run_query(query, { username });
-    return results !== null && results !== void 0 ? results : [];
+    const result = yield db.run_query(query, { username });
+    // Ensure result is an array, even if a single object is returned
+    return Array.isArray(result) ? result : [result].filter(Boolean);
 });
 exports.findByUsername = findByUsername;
 const getByEmail = (email) => __awaiter(void 0, void 0, void 0, function* () {
@@ -84,6 +81,39 @@ const getByEmail = (email) => __awaiter(void 0, void 0, void 0, function* () {
     return results !== null && results !== void 0 ? results : [];
 });
 exports.getByEmail = getByEmail;
+// export const add = async (user: Omit<User, 'id'> & { signupCode?: string }): Promise<number> => {
+//   const { username, password, email, role, avatarurl, signupCode } = user;
+//   console.log('Received signupCode:', signupCode);
+//   if (signupCode?.toUpperCase() !== 'WANDERLUST2025') {
+//     throw new Error('Invalid signup code');
+//   }
+//   if (!username || !password || !email || !role) {
+//     throw new Error('Missing required fields');
+//   }
+//   const existingUsers = await findByUsername(username);
+//   const existingEmails = await getByEmail(email);
+//   if (existingUsers.length > 0 || existingEmails.length > 0) {
+//     throw new Error('User already exists');
+//   }
+//   const hashedPassword = await bcrypt.hash(password, 10);
+//   console.log('Generated hash for', username, ':', hashedPassword); // Add this
+//   const query =
+//     'INSERT INTO users (username, password, email, role, avatarurl) VALUES (:username, :password, :email, :role, :avatarurl) RETURNING id';
+//   try {
+//     const result = await db.run_insert<{ id: number }>(query, {
+//       username,
+//       password: hashedPassword,
+//       email,
+//       role,
+//       avatarurl: avatarurl || null,
+//     });
+//     console.log('User inserted with ID:', result.id); // Add this
+//     return result.id;
+//   } catch (error) {
+//     console.error('Insert error:', error); // Add this
+//     throw new Error(`Failed to add user: ${(error as Error).message}`);
+//   }
+// };
 const add = (user) => __awaiter(void 0, void 0, void 0, function* () {
     const { username, password, email, role, avatarurl, signupCode } = user;
     console.log('Received signupCode:', signupCode);
@@ -98,19 +128,22 @@ const add = (user) => __awaiter(void 0, void 0, void 0, function* () {
     if (existingUsers.length > 0 || existingEmails.length > 0) {
         throw new Error('User already exists');
     }
-    const hashedPassword = yield bcrypt_1.default.hash(password, 10);
+    // Remove redundant hashing; use password as provided (already hashed in register)
+    console.log('Using provided hash for', username, ':', password);
     const query = 'INSERT INTO users (username, password, email, role, avatarurl) VALUES (:username, :password, :email, :role, :avatarurl) RETURNING id';
     try {
         const result = yield db.run_insert(query, {
             username,
-            password: hashedPassword,
+            password, // Use hashed password from register
             email,
             role,
             avatarurl: avatarurl || null,
         });
+        console.log('User inserted with ID:', result.id);
         return result.id;
     }
     catch (error) {
+        console.error('Insert error:', error);
         throw new Error(`Failed to add user: ${error.message}`);
     }
 });

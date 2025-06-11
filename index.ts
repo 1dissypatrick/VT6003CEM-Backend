@@ -13,7 +13,7 @@ const app: Koa = new Koa();
 const router: Router = new Router();
 
 app.use(serve('./docs'));
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(logger());
 app.use(json());
 app.use(bodyParser());
