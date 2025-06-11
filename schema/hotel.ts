@@ -1,4 +1,3 @@
-// src/schema/hotel.ts
 import Joi from 'joi';
 
 export interface Hotel {
@@ -30,5 +29,5 @@ export const hotelSchema = Joi.object<Hotel>({
   imageUrl: Joi.string().uri().allow(''),
   description: Joi.string().allow(''),
   rating: Joi.number().min(0).max(5),
-  createdBy: Joi.number().min(1).required(),
+  createdBy: Joi.number().min(1).optional(), // Allow server to set createdBy
 }).min(1); // Allow partial updates for PUT

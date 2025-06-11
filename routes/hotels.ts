@@ -1,4 +1,3 @@
-// src/controllers/hotels.ts
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
 import { authMiddleware, operatorOnly } from '../controllers/auth';
@@ -22,6 +21,20 @@ const postToSocialMedia = async (hotel: Hotel) => {
   } catch (error) {
     console.error('Failed to post to social media:', (error as Error).message);
   }
+};
+
+// Middleware to inject createdBy from JWT
+const injectCreatedBy = async (ctx: Context, next: Next) => {
+  if (ctx.state.user?.id) {
+    const body = ctx.request.body as Omit<Hotel, 'id'>;
+    body.createdBy = ctx.state.user.id;
+    ctx.request.body = body;
+  } else {
+    ctx.status = 401;
+    ctx.body = { error: 'User not authenticated' };
+    return;
+  }
+  await next();
 };
 
 const getAll = async (ctx: Context, next: Next) => {
@@ -69,8 +82,7 @@ const getById = async (ctx: Context, next: Next) => {
 
 const createHotel = async (ctx: Context, next: Next) => {
   const hotel = ctx.request.body as Omit<Hotel, 'id'>;
-  hotel.createdBy = ctx.state.user.id; // Set createdBy from JWT
-  const { postToSocial } = ctx.request.body as { postToSocial?: boolean };
+  const { postToSocial = false } = ctx.request.body as { postToSocial?: boolean }; // Default to false
   try {
     const result = await model.add(hotel);
     if (result.status === 201) {
@@ -140,7 +152,7 @@ const deleteHotel = async (ctx: Context, next: Next) => {
 
 router.get('/', getAll);
 router.get('/:id([0-9]{1,})', getById);
-router.post('/', bodyParser(), authMiddleware, operatorOnly, validateMiddleware(hotelSchema), createHotel);
+router.post('/', bodyParser(), authMiddleware, operatorOnly, injectCreatedBy, validateMiddleware(hotelSchema), createHotel);
 router.put('/:id([0-9]{1,})', bodyParser(), authMiddleware, operatorOnly, validateMiddleware(hotelSchema), updateHotel);
 router.delete('/:id([0-9]{1,})', authMiddleware, operatorOnly, deleteHotel);
 

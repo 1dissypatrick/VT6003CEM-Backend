@@ -1,4 +1,3 @@
-// src/models/hotels.ts
 import * as db from '../helpers/database';
 import { Hotel } from '../schema/hotel';
 
@@ -12,52 +11,53 @@ export const getAll = async (
 ): Promise<Hotel[]> => {
   const offset = (page - 1) * limit;
   let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE 1=1';
-  const values: any[] = [];
-  let paramIndex = 1;
+  const values: any = {};
   if (search) {
-    query += ` AND name ILIKE $${paramIndex++}`;
-    values.push(`%${search}%`);
+    query += ` AND name ILIKE :search`;
+    values.search = `%${search}%`;
   }
   if (location) {
-    query += ` AND location ILIKE $${paramIndex++}`;
-    values.push(`%${location}%`);
+    query += ` AND location ILIKE :location`;
+    values.location = `%${location}%`;
   }
   if (minPrice !== undefined) {
-    query += ` AND price >= $${paramIndex++}`;
-    values.push(minPrice);
+    query += ` AND price >= :minPrice`;
+    values.minPrice = minPrice;
   }
   if (maxPrice !== undefined) {
-    query += ` AND price <= $${paramIndex++}`;
-    values.push(maxPrice);
+    query += ` AND price <= :maxPrice`;
+    values.maxPrice = maxPrice;
   }
-  query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
-  values.push(limit, offset);
+  query += ` LIMIT :limit OFFSET :offset`;
+  values.limit = limit;
+  values.offset = offset;
   const results = await db.run_query<Hotel>(query, values);
   return results ?? [];
 };
 
 export const getById = async (id: number): Promise<Hotel | null> => {
-  const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = $1';
-  const results = await db.run_query<Hotel>(query, [id]);
+  const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = :id';
+  const results = await db.run_query<Hotel>(query, { id });
   return results.length > 0 ? results[0] : null;
 };
 
 export const add = async (hotel: Omit<Hotel, 'id'>): Promise<{ status: number; data: number }> => {
   const { name, location, price, availability, amenities, imageUrl, description, rating, createdBy } = hotel;
   const query =
-    'INSERT INTO hotels (name, location, price, availability, amenities, image_url, description, rating, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id';
+    'INSERT INTO hotels (name, location, price, availability, amenities, image_url, description, rating, created_by) ' +
+    'VALUES (:name, :location, :price, :availability::jsonb, :amenities::jsonb, :imageUrl, :description, :rating, :createdBy) RETURNING id';
   try {
-    const result = await db.run_insert<{ id: number }>(query, [
+    const result = await db.run_insert<{ id: number }>(query, {
       name,
       location,
       price,
-      JSON.stringify(availability),
-      JSON.stringify(amenities),
-      imageUrl || null,
-      description || null,
-      rating || null,
+      availability: JSON.stringify(availability),
+      amenities: JSON.stringify(amenities),
+      imageUrl: imageUrl || null,
+      description: description || null,
+      rating: null,
       createdBy,
-    ]);
+    });
     return { status: 201, data: result.id };
   } catch (error) {
     throw new Error(`Failed to add hotel: ${(error as Error).message}`);

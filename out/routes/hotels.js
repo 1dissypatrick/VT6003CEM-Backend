@@ -46,7 +46,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.router = void 0;
-// src/controllers/hotels.ts
 const koa_router_1 = __importDefault(require("koa-router"));
 const koa_bodyparser_1 = __importDefault(require("koa-bodyparser"));
 const auth_1 = require("../controllers/auth");
@@ -68,6 +67,21 @@ const postToSocialMedia = (hotel) => __awaiter(void 0, void 0, void 0, function*
     catch (error) {
         console.error('Failed to post to social media:', error.message);
     }
+});
+// Middleware to inject createdBy from JWT
+const injectCreatedBy = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    if ((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.id) {
+        const body = ctx.request.body;
+        body.createdBy = ctx.state.user.id;
+        ctx.request.body = body;
+    }
+    else {
+        ctx.status = 401;
+        ctx.body = { error: 'User not authenticated' };
+        return;
+    }
+    yield next();
 });
 const getAll = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { limit = '10', page = '1', search = '', location = '', minPrice, maxPrice } = ctx.request.query;
@@ -108,8 +122,7 @@ const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
 });
 const createHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const hotel = ctx.request.body;
-    hotel.createdBy = ctx.state.user.id; // Set createdBy from JWT
-    const { postToSocial } = ctx.request.body;
+    const { postToSocial = false } = ctx.request.body; // Default to false
     try {
         const result = yield model.add(hotel);
         if (result.status === 201) {
@@ -182,6 +195,6 @@ const deleteHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 router.get('/', getAll);
 router.get('/:id([0-9]{1,})', getById);
-router.post('/', (0, koa_bodyparser_1.default)(), auth_1.authMiddleware, auth_1.operatorOnly, (0, validation_1.validateMiddleware)(hotel_1.hotelSchema), createHotel);
+router.post('/', (0, koa_bodyparser_1.default)(), auth_1.authMiddleware, auth_1.operatorOnly, injectCreatedBy, (0, validation_1.validateMiddleware)(hotel_1.hotelSchema), createHotel);
 router.put('/:id([0-9]{1,})', (0, koa_bodyparser_1.default)(), auth_1.authMiddleware, auth_1.operatorOnly, (0, validation_1.validateMiddleware)(hotel_1.hotelSchema), updateHotel);
 router.delete('/:id([0-9]{1,})', auth_1.authMiddleware, auth_1.operatorOnly, deleteHotel);

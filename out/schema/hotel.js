@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.hotelSchema = void 0;
-// src/schema/hotel.ts
 const joi_1 = __importDefault(require("joi"));
 exports.hotelSchema = joi_1.default.object({
     name: joi_1.default.string().min(1).required(),
@@ -20,5 +19,5 @@ exports.hotelSchema = joi_1.default.object({
     imageUrl: joi_1.default.string().uri().allow(''),
     description: joi_1.default.string().allow(''),
     rating: joi_1.default.number().min(0).max(5),
-    createdBy: joi_1.default.number().min(1).required(),
+    createdBy: joi_1.default.number().min(1).optional(), // Allow server to set createdBy
 }).min(1); // Allow partial updates for PUT
