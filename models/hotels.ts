@@ -55,7 +55,7 @@ export const add = async (hotel: Omit<Hotel, 'id'>): Promise<{ status: number; d
       amenities: JSON.stringify(amenities),
       imageUrl: imageUrl || null,
       description: description || null,
-      rating: null,
+      rating: rating || null,
       createdBy,
     });
     return { status: 201, data: result.id };
@@ -69,18 +69,24 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
   if (keys.length === 0) {
     return { status: 400, data: {} as Hotel };
   }
+  // Map camelCase to snake_case for database columns
+  const keyMap: { [key: string]: string } = {
+    imageUrl: 'image_url',
+    createdBy: 'created_by',
+  };
   const setClause = keys
-    .map((key, index) =>
-      key === 'availability' || key === 'amenities'
-        ? `${key} = $${index + 1}::jsonb`
-        : `${key} = $${index + 1}`
-    )
+    .map((key) => {
+      const dbKey = keyMap[key] || key;
+      return key === 'availability' || key === 'amenities'
+        ? `${dbKey} = :${key}::jsonb`
+        : `${dbKey} = :${key}`;
+    })
     .join(', ');
-  const values = keys.map((key) =>
-    key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key]
-  );
-  values.push(id);
-  const query = `UPDATE hotels SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`;
+  const values = keys.reduce((acc, key) => ({
+    ...acc,
+    [key]: key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key],
+  }), { id });
+  const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING *`;
   try {
     const result = await db.run_update<Hotel>(query, values);
     return result.length > 0 ? { status: 200, data: result[0] } : { status: 404, data: {} as Hotel };
@@ -90,9 +96,9 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
 };
 
 export const deleteById = async (id: number): Promise<{ status: number }> => {
-  const query = 'DELETE FROM hotels WHERE id = $1';
+  const query = 'DELETE FROM hotels WHERE id = :id';
   try {
-    await db.run_delete(query, [id]);
+    await db.run_delete(query, { id });
     return { status: 200 };
   } catch (error) {
     throw new Error(`Failed to delete hotel: ${(error as Error).message}`);

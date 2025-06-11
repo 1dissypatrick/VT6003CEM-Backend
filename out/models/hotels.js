@@ -90,7 +90,7 @@ const add = (hotel) => __awaiter(void 0, void 0, void 0, function* () {
             amenities: JSON.stringify(amenities),
             imageUrl: imageUrl || null,
             description: description || null,
-            rating: null,
+            rating: rating || null,
             createdBy,
         });
         return { status: 201, data: result.id };
@@ -105,14 +105,21 @@ const update = (hotel, id) => __awaiter(void 0, void 0, void 0, function* () {
     if (keys.length === 0) {
         return { status: 400, data: {} };
     }
+    // Map camelCase to snake_case for database columns
+    const keyMap = {
+        imageUrl: 'image_url',
+        createdBy: 'created_by',
+    };
     const setClause = keys
-        .map((key, index) => key === 'availability' || key === 'amenities'
-        ? `${key} = $${index + 1}::jsonb`
-        : `${key} = $${index + 1}`)
+        .map((key) => {
+        const dbKey = keyMap[key] || key;
+        return key === 'availability' || key === 'amenities'
+            ? `${dbKey} = :${key}::jsonb`
+            : `${dbKey} = :${key}`;
+    })
         .join(', ');
-    const values = keys.map((key) => key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key]);
-    values.push(id);
-    const query = `UPDATE hotels SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`;
+    const values = keys.reduce((acc, key) => (Object.assign(Object.assign({}, acc), { [key]: key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key] })), { id });
+    const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING *`;
     try {
         const result = yield db.run_update(query, values);
         return result.length > 0 ? { status: 200, data: result[0] } : { status: 404, data: {} };
@@ -123,9 +130,9 @@ const update = (hotel, id) => __awaiter(void 0, void 0, void 0, function* () {
 });
 exports.update = update;
 const deleteById = (id) => __awaiter(void 0, void 0, void 0, function* () {
-    const query = 'DELETE FROM hotels WHERE id = $1';
+    const query = 'DELETE FROM hotels WHERE id = :id';
     try {
-        yield db.run_delete(query, [id]);
+        yield db.run_delete(query, { id });
         return { status: 200 };
     }
     catch (error) {

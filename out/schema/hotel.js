@@ -16,8 +16,23 @@ exports.hotelSchema = joi_1.default.object({
     }))
         .required(),
     amenities: joi_1.default.array().items(joi_1.default.string()).required(),
-    imageUrl: joi_1.default.string().uri().allow(''),
+    imageUrl: joi_1.default.alternatives()
+        .try(joi_1.default.string().uri().allow('').optional(), // Accept imageUrl
+    joi_1.default.object({
+        image_url: joi_1.default.string().uri().allow('').optional(), // Accept image_url
+    }).unknown(true))
+        .optional(),
     description: joi_1.default.string().allow(''),
     rating: joi_1.default.number().min(0).max(5),
     createdBy: joi_1.default.number().min(1).optional(), // Allow server to set createdBy
-}).min(1); // Allow partial updates for PUT
+}).min(1).custom((value, helpers) => {
+    // Normalize image_url to imageUrl
+    if (value.image_url && !value.imageUrl) {
+        value.imageUrl = value.image_url;
+        delete value.image_url;
+    }
+    else if (value.imageUrl && typeof value.imageUrl === 'object' && 'image_url' in value.imageUrl) {
+        value.imageUrl = value.imageUrl.image_url;
+    }
+    return value;
+}); // Allow partial updates for PUT
