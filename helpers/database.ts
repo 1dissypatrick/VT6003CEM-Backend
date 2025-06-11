@@ -57,12 +57,14 @@ export async function run_update<T>(query: string, values: any[] | Record<string
   }
 }
 
-export async function run_delete(query: string, values: any[] | Record<string, any>): Promise<{ rowCount: number }> {
+export async function run_delete(query: string, values: any[] | Record<string, any>): Promise<{ rowsAffected: number }> {
   try {
     const options: QueryOptions = { replacements: values, type: 'DELETE' };
     console.log('Executing delete:', query, 'with values:', values);
-    const [, metadata] = await sequelize.query(query, options);
-    return { rowCount: (metadata as any).rowCount || 0 };
+    const [_, metadata] = await sequelize.query(query, options);
+    // Handle cases where metadata is undefined or lacks rowCount
+    const rowsAffected = metadata && typeof metadata === 'object' && 'rowCount' in metadata ? Number(metadata.rowCount) : 0;
+    return { rowsAffected };
   } catch (error) {
     console.error(`Delete failed: ${query}`, 'Values:', values, 'Error:', error);
     throw error;

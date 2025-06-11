@@ -10,7 +10,7 @@ export const getAll = async (
   maxPrice?: number
 ): Promise<Hotel[]> => {
   const offset = (page - 1) * limit;
-  let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE 1=1';
+  let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id IS NOT NULL';
   const values: any = {};
   if (search) {
     query += ` AND name ILIKE :search`;
@@ -98,8 +98,8 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
 export const deleteById = async (id: number): Promise<{ status: number }> => {
   const query = 'DELETE FROM hotels WHERE id = :id';
   try {
-    await db.run_delete(query, { id });
-    return { status: 200 };
+    const result = await db.run_delete(query, { id });
+    return result.rowsAffected > 0 ? { status: 200 } : { status: 404 };
   } catch (error) {
     throw new Error(`Failed to delete hotel: ${(error as Error).message}`);
   }

@@ -25,6 +25,7 @@ const postToSocialMedia = async (hotel: Hotel) => {
 
 // Middleware to inject createdBy from JWT
 const injectCreatedBy = async (ctx: Context, next: Next) => {
+  console.log('injectCreatedBy: User:', ctx.state.user);
   if (ctx.state.user?.id) {
     const body = ctx.request.body as Omit<Hotel, 'id'>;
     body.createdBy = ctx.state.user.id;
@@ -129,6 +130,7 @@ const updateHotel = async (ctx: Context, next: Next) => {
 
 const deleteHotel = async (ctx: Context, next: Next) => {
   const id = parseInt(ctx.params.id, 10);
+  console.log(`deleteHotel: Attempting to delete hotel with id=${id}`);
   if (isNaN(id)) {
     ctx.status = 400;
     ctx.body = { error: 'Invalid hotel ID' };
@@ -136,14 +138,11 @@ const deleteHotel = async (ctx: Context, next: Next) => {
   }
   try {
     const result = await model.deleteById(id);
-    if (result.status === 200) {
-      ctx.status = 200;
-      ctx.body = { message: `Hotel with id ${id} deleted` };
-    } else {
-      ctx.status = 404;
-      ctx.body = { error: 'Hotel not found' };
-    }
+    console.log(`deleteHotel: Result for id=${id}:`, result);
+    ctx.status = result.status;
+    ctx.body = result.status === 200 ? { message: `Hotel with id ${id} deleted` } : { error: 'Hotel not found' };
   } catch (error) {
+    console.error(`deleteHotel: Error for id=${id}:`, error);
     ctx.status = 500;
     ctx.body = { error: (error as Error).message };
   }

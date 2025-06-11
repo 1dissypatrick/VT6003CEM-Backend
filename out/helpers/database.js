@@ -85,8 +85,10 @@ function run_delete(query, values) {
         try {
             const options = { replacements: values, type: 'DELETE' };
             console.log('Executing delete:', query, 'with values:', values);
-            const [, metadata] = yield exports.sequelize.query(query, options);
-            return { rowCount: metadata.rowCount || 0 };
+            const [_, metadata] = yield exports.sequelize.query(query, options);
+            // Handle cases where metadata is undefined or lacks rowCount
+            const rowsAffected = metadata && typeof metadata === 'object' && 'rowCount' in metadata ? Number(metadata.rowCount) : 0;
+            return { rowsAffected };
         }
         catch (error) {
             console.error(`Delete failed: ${query}`, 'Values:', values, 'Error:', error);

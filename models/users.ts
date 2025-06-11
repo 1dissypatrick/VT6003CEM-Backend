@@ -85,7 +85,7 @@ export const deleteById = async (id: number): Promise<{ affectedRows: number }> 
   const query = 'DELETE FROM users WHERE id = :id';
   try {
     const result = await db.run_delete(query, { id: id.toString() });
-    return { affectedRows: result.rowCount };
+    return { affectedRows: result.rowsAffected };
   } catch (error) {
     throw new Error(`Failed to delete user: ${(error as Error).message}`);
   }

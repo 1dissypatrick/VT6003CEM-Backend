@@ -71,6 +71,7 @@ const postToSocialMedia = (hotel) => __awaiter(void 0, void 0, void 0, function*
 // Middleware to inject createdBy from JWT
 const injectCreatedBy = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
+    console.log('injectCreatedBy: User:', ctx.state.user);
     if ((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.id) {
         const body = ctx.request.body;
         body.createdBy = ctx.state.user.id;
@@ -171,6 +172,7 @@ const updateHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 const deleteHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
+    console.log(`deleteHotel: Attempting to delete hotel with id=${id}`);
     if (isNaN(id)) {
         ctx.status = 400;
         ctx.body = { error: 'Invalid hotel ID' };
@@ -178,16 +180,12 @@ const deleteHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
     }
     try {
         const result = yield model.deleteById(id);
-        if (result.status === 200) {
-            ctx.status = 200;
-            ctx.body = { message: `Hotel with id ${id} deleted` };
-        }
-        else {
-            ctx.status = 404;
-            ctx.body = { error: 'Hotel not found' };
-        }
+        console.log(`deleteHotel: Result for id=${id}:`, result);
+        ctx.status = result.status;
+        ctx.body = result.status === 200 ? { message: `Hotel with id ${id} deleted` } : { error: 'Hotel not found' };
     }
     catch (error) {
+        console.error(`deleteHotel: Error for id=${id}:`, error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }

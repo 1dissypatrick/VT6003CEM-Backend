@@ -46,7 +46,7 @@ exports.deleteById = exports.update = exports.add = exports.getById = exports.ge
 const db = __importStar(require("../helpers/database"));
 const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (limit = 10, page = 1, search = '', location = '', minPrice, maxPrice) {
     const offset = (page - 1) * limit;
-    let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE 1=1';
+    let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id IS NOT NULL';
     const values = {};
     if (search) {
         query += ` AND name ILIKE :search`;
@@ -132,8 +132,8 @@ exports.update = update;
 const deleteById = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const query = 'DELETE FROM hotels WHERE id = :id';
     try {
-        yield db.run_delete(query, { id });
-        return { status: 200 };
+        const result = yield db.run_delete(query, { id });
+        return result.rowsAffected > 0 ? { status: 200 } : { status: 404 };
     }
     catch (error) {
         throw new Error(`Failed to delete hotel: ${error.message}`);
