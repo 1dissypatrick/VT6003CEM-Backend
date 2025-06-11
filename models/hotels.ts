@@ -1,3 +1,4 @@
+// src/models/hotels.ts
 import * as db from '../helpers/database';
 import { Hotel } from '../schema/hotel';
 
@@ -10,7 +11,7 @@ export const getAll = async (
   maxPrice?: number
 ): Promise<Hotel[]> => {
   const offset = (page - 1) * limit;
-  let query = 'SELECT id, name, location, price, availability, description, rating FROM hotels WHERE 1=1';
+  let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE 1=1';
   const values: any[] = [];
   let paramIndex = 1;
   if (search) {
@@ -31,27 +32,31 @@ export const getAll = async (
   }
   query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
   values.push(limit, offset);
-  return await db.run_query<Hotel>(query, values);
+  const results = await db.run_query<Hotel>(query, values);
+  return results ?? [];
 };
 
 export const getById = async (id: number): Promise<Hotel | null> => {
-  const query = 'SELECT id, name, location, price, availability, description, rating FROM hotels WHERE id = $1';
+  const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = $1';
   const results = await db.run_query<Hotel>(query, [id]);
   return results.length > 0 ? results[0] : null;
 };
 
 export const add = async (hotel: Omit<Hotel, 'id'>): Promise<{ status: number; data: number }> => {
-  const { name, location, price, availability, description, rating } = hotel;
+  const { name, location, price, availability, amenities, imageUrl, description, rating, createdBy } = hotel;
   const query =
-    'INSERT INTO hotels (name, location, price, availability, description, rating) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id';
+    'INSERT INTO hotels (name, location, price, availability, amenities, image_url, description, rating, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id';
   try {
     const result = await db.run_insert<{ id: number }>(query, [
       name,
       location,
       price,
-      availability,
+      JSON.stringify(availability),
+      JSON.stringify(amenities),
+      imageUrl || null,
       description || null,
       rating || null,
+      createdBy,
     ]);
     return { status: 201, data: result.id };
   } catch (error) {
@@ -64,9 +69,18 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
   if (keys.length === 0) {
     return { status: 400, data: {} as Hotel };
   }
-  const setClause = keys.map((key, index) => `${key} = $${index + 1}`).join(', ');
+  const setClause = keys
+    .map((key, index) =>
+      key === 'availability' || key === 'amenities'
+        ? `${key} = $${index + 1}::jsonb`
+        : `${key} = $${index + 1}`
+    )
+    .join(', ');
+  const values = keys.map((key) =>
+    key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key]
+  );
+  values.push(id);
   const query = `UPDATE hotels SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`;
-  const values = [...Object.values(hotel), id];
   try {
     const result = await db.run_update<Hotel>(query, values);
     return result.length > 0 ? { status: 200, data: result[0] } : { status: 404, data: {} as Hotel };

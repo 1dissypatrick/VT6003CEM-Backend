@@ -1,26 +1,20 @@
+import Joi from 'joi';
+
 export interface User {
   id: number;
   username: string;
-  password: string;
+  password?: string; // Optional for updates
   email: string;
-  role: 'operator' | 'user';
-  avatarurl?: string;
-  signupCode?: string;
+  role: 'user' | 'operator';
+  avatarurl?: string | null; // Allow null
+  signupCode?: string | null; // Allow null
 }
 
-export const userSchema = {
-  type: 'object',
-  required: ['username', 'password', 'email', 'role', 'signupCode'],
-  properties: {
-    username: { type: 'string', minLength: 3, maxLength: 255 },
-    password: { type: 'string', minLength: 8, maxLength: 255 },
-    email: {
-      type: 'string',
-      pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
-    },
-    role: { type: 'string', enum: ['operator', 'user'] },
-    signupCode: { type: 'string', const: 'WANDERLUST2025' },
-    avatarurl: { type: 'string', maxLength: 255 },
-  },
-  additionalProperties: false,
-};
+export const userSchema = Joi.object<User>({
+  username: Joi.string().min(3).max(255),
+  password: Joi.string().min(8).max(255),
+  email: Joi.string().email(),
+  role: Joi.string().valid('user', 'operator'),
+  avatarurl: Joi.string().uri().allow('', null).max(255), // Allow null
+  signupCode: Joi.string().allow('', null), // Allow null
+}).min(1); // Require at least one field for partial updates

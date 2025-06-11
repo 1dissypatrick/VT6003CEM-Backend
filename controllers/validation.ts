@@ -1,38 +1,39 @@
+// src/controllers/validation.ts
+import Joi from 'joi';
 import { Context, Next } from 'koa';
-import addFormats from 'ajv-formats';
-import Ajv from 'ajv';
 
-const ajv = new Ajv({ allErrors: true, removeAdditional: true });
-addFormats(ajv);
 /**
- * Validates data against a JSON schema.
- * @param schema JSON schema
+ * Validates data against a Joi schema.
+ * @param schema Joi schema
  * @param data Data to validate
  * @returns Validated data with type T
  * @throws Error if validation fails
  */
-export function validate<T>(schema: object, data: unknown): T {
-  const validate = ajv.compile(schema);
-  const valid = validate(data);
-  if (!valid) {
-    throw new Error(JSON.stringify(validate.errors));
+export function validate<T>(schema: Joi.Schema, data: unknown): T {
+  const { error, value } = schema.validate(data, {
+    abortEarly: false, // Report all errors
+    stripUnknown: true, // Remove unknown properties
+    allowUnknown: false, // Disallow unknown properties for strict validation
+  });
+  if (error) {
+    throw new Error(`Validation failed: ${error.details.map((d) => d.message).join(', ')}`);
   }
-  return data as T;
+  return value as T;
 }
 
 /**
- * Koa middleware for schema validation.
- * @param schema JSON schema
+ * Koa middleware for Joi schema validation.
+ * @param schema Joi schema
  * @returns Koa middleware function
  */
-export const validateMiddleware = (schema: object) => {
-  const validate = ajv.compile(schema);
+export const validateMiddleware = (schema: Joi.Schema) => {
   return async (ctx: Context, next: Next) => {
-    if (!validate(ctx.request.body)) {
+    try {
+      ctx.request.body = validate(schema, ctx.request.body);
+      await next();
+    } catch (error) {
       ctx.status = 400;
-      ctx.body = { error: validate.errors?.map((err) => err.message).join(', ') || 'Validation failed' };
-      return;
+      ctx.body = { error: (error as Error).message };
     }
-    await next();
   };
 };

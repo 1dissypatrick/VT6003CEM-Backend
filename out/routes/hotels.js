@@ -46,85 +46,137 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.router = void 0;
+// src/controllers/hotels.ts
 const koa_router_1 = __importDefault(require("koa-router"));
 const koa_bodyparser_1 = __importDefault(require("koa-bodyparser"));
 const auth_1 = require("../controllers/auth");
 const validation_1 = require("../controllers/validation");
 const hotel_1 = require("../schema/hotel");
 const model = __importStar(require("../models/hotels"));
+const axios_1 = __importDefault(require("axios")); // For social media posting
 const prefix = '/api/v1/hotels';
 const router = new koa_router_1.default({ prefix });
 exports.router = router;
-/**
- * Get all hotels with optional search and filters.
- */
+const postToSocialMedia = (hotel) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        // Mock social media API (replace with real API, e.g., Twitter, Facebook)
+        yield axios_1.default.post('https://api.mock-social-media.com/post', {
+            message: `New hotel listed: ${hotel.name} in ${hotel.location} for $${hotel.price}/night!`,
+        });
+        console.log(`Posted to social media: ${hotel.name}`);
+    }
+    catch (error) {
+        console.error('Failed to post to social media:', error.message);
+    }
+});
 const getAll = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { limit = '10', page = '1', search = '', location = '', minPrice, maxPrice } = ctx.request.query;
-    const hotels = yield model.getAll(parseInt(limit, 10), parseInt(page, 10), search, location, minPrice ? parseFloat(minPrice) : undefined, maxPrice ? parseFloat(maxPrice) : undefined);
-    ctx.body = hotels;
+    try {
+        const hotels = yield model.getAll(parseInt(limit, 10), parseInt(page, 10), search, location, minPrice ? parseFloat(minPrice) : undefined, maxPrice ? parseFloat(maxPrice) : undefined);
+        ctx.status = 200;
+        ctx.body = hotels;
+    }
+    catch (error) {
+        ctx.status = 500;
+        ctx.body = { error: error.message };
+    }
     yield next();
 });
-/**
- * Get a hotel by ID.
- */
 const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
-    const hotel = yield model.getById(id);
-    if (hotel) {
-        ctx.body = hotel;
+    if (isNaN(id)) {
+        ctx.status = 400;
+        ctx.body = { error: 'Invalid hotel ID' };
+        return;
     }
-    else {
-        ctx.status = 404;
-        ctx.body = { error: 'Hotel not found' };
+    try {
+        const hotel = yield model.getById(id);
+        if (hotel) {
+            ctx.status = 200;
+            ctx.body = hotel;
+        }
+        else {
+            ctx.status = 404;
+            ctx.body = { error: 'Hotel not found' };
+        }
+    }
+    catch (error) {
+        ctx.status = 500;
+        ctx.body = { error: error.message };
     }
     yield next();
 });
-/**
- * Create a new hotel (operator only).
- */
 const createHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const hotel = ctx.request.body;
-    const result = yield model.add(hotel);
-    if (result.status === 201) {
-        ctx.status = 201;
-        ctx.body = { id: result.data };
+    hotel.createdBy = ctx.state.user.id; // Set createdBy from JWT
+    const { postToSocial } = ctx.request.body;
+    try {
+        const result = yield model.add(hotel);
+        if (result.status === 201) {
+            const newHotel = Object.assign(Object.assign({}, hotel), { id: result.data });
+            if (postToSocial) {
+                yield postToSocialMedia(newHotel);
+            }
+            ctx.status = 201;
+            ctx.body = newHotel;
+        }
+        else {
+            ctx.status = 400;
+            ctx.body = { error: 'Failed to create hotel' };
+        }
     }
-    else {
+    catch (error) {
         ctx.status = 400;
-        ctx.body = { error: 'Failed to create hotel' };
+        ctx.body = { error: error.message };
     }
     yield next();
 });
-/**
- * Update a hotel by ID (operator only).
- */
 const updateHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
-    const hotel = ctx.request.body;
-    const result = yield model.update(hotel, id);
-    if (result.status === 200) {
-        ctx.status = 200;
-        ctx.body = result.data;
+    if (isNaN(id)) {
+        ctx.status = 400;
+        ctx.body = { error: 'Invalid hotel ID' };
+        return;
     }
-    else {
-        ctx.status = 404;
-        ctx.body = { error: 'Hotel not found' };
+    const hotel = ctx.request.body;
+    try {
+        const result = yield model.update(hotel, id);
+        if (result.status === 200) {
+            ctx.status = 200;
+            ctx.body = result.data;
+        }
+        else {
+            ctx.status = 404;
+            ctx.body = { error: 'Hotel not found' };
+        }
+    }
+    catch (error) {
+        ctx.status = 400;
+        ctx.body = { error: error.message };
     }
     yield next();
 });
-/**
- * Delete a hotel by ID (operator only).
- */
 const deleteHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
-    const result = yield model.deleteById(id);
-    if (result.status === 200) {
-        ctx.status = 200;
-        ctx.body = { message: `Hotel with id ${id} deleted` };
+    if (isNaN(id)) {
+        ctx.status = 400;
+        ctx.body = { error: 'Invalid hotel ID' };
+        return;
     }
-    else {
-        ctx.status = 404;
-        ctx.body = { error: 'Hotel not found' };
+    try {
+        const result = yield model.deleteById(id);
+        if (result.status === 200) {
+            ctx.status = 200;
+            ctx.body = { message: `Hotel with id ${id} deleted` };
+        }
+        else {
+            ctx.status = 404;
+            ctx.body = { error: 'Hotel not found' };
+        }
+    }
+    catch (error) {
+        ctx.status = 500;
+        ctx.body = { error: error.message };
     }
     yield next();
 });

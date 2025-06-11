@@ -41,6 +41,8 @@
     "passport-http": "^0.3.0",
     "pg": "^8.16.0",
     "pg-hstore": "^2.3.4",
+    "joi": "^17.6.0",
+    "axios": "^1.4.0",
     "sequelize": "^6.37.7",
     "supertest": "^7.1.1",
     "ts-node": "^10.9.2",

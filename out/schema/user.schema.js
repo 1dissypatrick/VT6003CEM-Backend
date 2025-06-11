@@ -1,19 +1,15 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userSchema = void 0;
-exports.userSchema = {
-    type: 'object',
-    required: ['username', 'password', 'email', 'role', 'signupCode'],
-    properties: {
-        username: { type: 'string', minLength: 3, maxLength: 255 },
-        password: { type: 'string', minLength: 8, maxLength: 255 },
-        email: {
-            type: 'string',
-            pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
-        },
-        role: { type: 'string', enum: ['operator', 'user'] },
-        signupCode: { type: 'string', const: 'WANDERLUST2025' },
-        avatarurl: { type: 'string', maxLength: 255 },
-    },
-    additionalProperties: false,
-};
+const joi_1 = __importDefault(require("joi"));
+exports.userSchema = joi_1.default.object({
+    username: joi_1.default.string().min(3).max(255),
+    password: joi_1.default.string().min(8).max(255),
+    email: joi_1.default.string().email(),
+    role: joi_1.default.string().valid('user', 'operator'),
+    avatarurl: joi_1.default.string().uri().allow('', null).max(255), // Allow null
+    signupCode: joi_1.default.string().allow('', null), // Allow null
+}).min(1); // Require at least one field for partial updates

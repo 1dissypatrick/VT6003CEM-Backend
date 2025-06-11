@@ -52,6 +52,7 @@ const validation_1 = require("../controllers/validation");
 const user_schema_1 = require("../schema/user.schema");
 const model = __importStar(require("../models/users"));
 const auth_1 = require("../controllers/auth");
+const auth_2 = require("../schema/auth");
 const prefix = '/api/v1/users';
 const router = new koa_router_1.default({ prefix });
 exports.router = router;
@@ -196,8 +197,8 @@ const deleteUser = (ctx, next) => __awaiter(void 0, void 0, void 0, function* ()
 });
 router.get('/', auth_1.authMiddleware, auth_1.operatorOnly, getAll);
 router.get('/search', auth_1.authMiddleware, auth_1.operatorOnly, doSearch);
-router.post('/', (0, koa_bodyparser_1.default)(), createUser);
+router.post('/', (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(auth_2.registerSchema), createUser);
 router.get('/:id([0-9]{1,})', auth_1.authMiddleware, getById);
 router.put('/:id([0-9]{1,})', auth_1.authMiddleware, (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(user_schema_1.userSchema), updateUser);
 router.delete('/:id([0-9]{1,})', auth_1.authMiddleware, deleteUser);
-router.post('/login', (0, koa_bodyparser_1.default)(), auth_1.login);
+router.post('/login', (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(auth_2.loginSchema), auth_1.login);

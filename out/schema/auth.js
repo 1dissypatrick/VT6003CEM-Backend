@@ -1,23 +1,23 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.loginSchema = exports.registerSchema = void 0;
-exports.registerSchema = {
-    type: 'object',
-    required: ['username', 'password', 'signupCode', 'email'],
-    properties: {
-        username: { type: 'string', minLength: 3 },
-        password: { type: 'string', minLength: 6 },
-        signupCode: { type: 'string' },
-        email: { type: 'string', format: 'email' },
-    },
-    additionalProperties: false,
-};
-exports.loginSchema = {
-    type: 'object',
-    required: ['username', 'password'],
-    properties: {
-        username: { type: 'string', minLength: 3 },
-        password: { type: 'string', minLength: 6 },
-    },
-    additionalProperties: false,
-};
+// src/schema/auth.ts
+const joi_1 = __importDefault(require("joi"));
+exports.registerSchema = joi_1.default.object({
+    username: joi_1.default.string().min(3).max(255).required(),
+    password: joi_1.default.string().min(8).max(255).required(), // Match userSchema
+    email: joi_1.default.string().email().required(),
+    signupCode: joi_1.default.string().when('role', {
+        is: 'operator',
+        then: joi_1.default.string().valid('WANDERLUST2025').required(),
+        otherwise: joi_1.default.string().allow('').optional(),
+    }),
+    role: joi_1.default.string().valid('user', 'operator').default('user'),
+});
+exports.loginSchema = joi_1.default.object({
+    username: joi_1.default.string().min(3).required(),
+    password: joi_1.default.string().min(8).required(), // Match userSchema
+});

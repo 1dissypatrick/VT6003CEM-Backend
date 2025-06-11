@@ -8,46 +8,42 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateMiddleware = void 0;
 exports.validate = validate;
-const ajv_formats_1 = __importDefault(require("ajv-formats"));
-const ajv_1 = __importDefault(require("ajv"));
-const ajv = new ajv_1.default({ allErrors: true, removeAdditional: true });
-(0, ajv_formats_1.default)(ajv);
 /**
- * Validates data against a JSON schema.
- * @param schema JSON schema
+ * Validates data against a Joi schema.
+ * @param schema Joi schema
  * @param data Data to validate
  * @returns Validated data with type T
  * @throws Error if validation fails
  */
 function validate(schema, data) {
-    const validate = ajv.compile(schema);
-    const valid = validate(data);
-    if (!valid) {
-        throw new Error(JSON.stringify(validate.errors));
+    const { error, value } = schema.validate(data, {
+        abortEarly: false, // Report all errors
+        stripUnknown: true, // Remove unknown properties
+        allowUnknown: false, // Disallow unknown properties for strict validation
+    });
+    if (error) {
+        throw new Error(`Validation failed: ${error.details.map((d) => d.message).join(', ')}`);
     }
-    return data;
+    return value;
 }
 /**
- * Koa middleware for schema validation.
- * @param schema JSON schema
+ * Koa middleware for Joi schema validation.
+ * @param schema Joi schema
  * @returns Koa middleware function
  */
 const validateMiddleware = (schema) => {
-    const validate = ajv.compile(schema);
     return (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
-        if (!validate(ctx.request.body)) {
-            ctx.status = 400;
-            ctx.body = { error: ((_a = validate.errors) === null || _a === void 0 ? void 0 : _a.map((err) => err.message).join(', ')) || 'Validation failed' };
-            return;
+        try {
+            ctx.request.body = validate(schema, ctx.request.body);
+            yield next();
         }
-        yield next();
+        catch (error) {
+            ctx.status = 400;
+            ctx.body = { error: error.message };
+        }
     });
 };
 exports.validateMiddleware = validateMiddleware;

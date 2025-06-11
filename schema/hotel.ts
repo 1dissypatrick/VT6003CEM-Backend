@@ -1,4 +1,6 @@
 // src/schema/hotel.ts
+import Joi from 'joi';
+
 export interface Hotel {
   id?: number;
   name: string;
@@ -12,29 +14,21 @@ export interface Hotel {
   createdBy: number;
 }
 
-export const hotelSchema = {
-  type: 'object',
-  required: ['name', 'location', 'price', 'availability', 'amenities', 'createdBy'],
-  properties: {
-    name: { type: 'string', minLength: 1 },
-    location: { type: 'string', minLength: 1 },
-    price: { type: 'number', minimum: 0 },
-    availability: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['date', 'roomsAvailable'],
-        properties: {
-          date: { type: 'string', format: 'date' },
-          roomsAvailable: { type: 'number', minimum: 0 },
-        },
-      },
-    },
-    amenities: { type: 'array', items: { type: 'string' } },
-    imageUrl: { type: 'string', format: 'uri' },
-    description: { type: 'string', minLength: 1 },
-    rating: { type: 'number', minimum: 0, maximum: 5 },
-    createdBy: { type: 'number', minimum: 1 },
-  },
-  additionalProperties: true, // Allow extra fields for flexibility
-};
+export const hotelSchema = Joi.object<Hotel>({
+  name: Joi.string().min(1).required(),
+  location: Joi.string().min(1).required(),
+  price: Joi.number().min(0).required(),
+  availability: Joi.array()
+    .items(
+      Joi.object({
+        date: Joi.string().isoDate().required(),
+        roomsAvailable: Joi.number().min(0).required(),
+      })
+    )
+    .required(),
+  amenities: Joi.array().items(Joi.string()).required(),
+  imageUrl: Joi.string().uri().allow(''),
+  description: Joi.string().allow(''),
+  rating: Joi.number().min(0).max(5),
+  createdBy: Joi.number().min(1).required(),
+}).min(1); // Allow partial updates for PUT

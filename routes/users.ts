@@ -6,6 +6,7 @@ import * as model from '../models/users';
 import { authMiddleware, operatorOnly, register, login } from '../controllers/auth';
 import { Context, Next } from 'koa';
 import { User } from '../schema/user.schema';
+import { registerSchema, loginSchema } from '../schema/auth';
 
 const prefix = '/api/v1/users';
 const router: Router = new Router({ prefix });
@@ -143,10 +144,10 @@ const deleteUser = async (ctx: Context, next: Next) => {
 
 router.get('/', authMiddleware, operatorOnly, getAll);
 router.get('/search', authMiddleware, operatorOnly, doSearch);
-router.post('/', bodyParser(), createUser);
+router.post('/', bodyParser(), validateMiddleware(registerSchema), createUser);
 router.get('/:id([0-9]{1,})', authMiddleware, getById);
 router.put('/:id([0-9]{1,})', authMiddleware, bodyParser(), validateMiddleware(userSchema), updateUser);
 router.delete('/:id([0-9]{1,})', authMiddleware, deleteUser);
-router.post('/login', bodyParser(), login);
+router.post('/login', bodyParser(), validateMiddleware(loginSchema), login);
 
 export { router };

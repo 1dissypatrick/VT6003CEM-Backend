@@ -15,18 +15,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.operatorOnly = exports.authMiddleware = exports.login = exports.register = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const validation_1 = require("./validation");
-const auth_1 = require("../schema/auth");
 const users_1 = require("../models/users");
 const SECRET_CODE = 'WANDERLUST2025';
 const JWT_SECRET = process.env.JWT_SECRET || '7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2';
 const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { username, password, signupCode, email } = (0, validation_1.validate)(auth_1.registerSchema, ctx.request.body);
-        if (signupCode !== SECRET_CODE) {
-            ctx.status = 403;
-            ctx.body = { error: 'Invalid sign-up code' };
-            return;
+        console.log('Request body:', ctx.request.body);
+        const { username, password, signupCode, email, role = 'user' } = ctx.request.body;
+        console.log('Validated data:', { username, password, signupCode, email, role });
+        if (role === 'operator') {
+            if (!signupCode || signupCode.toUpperCase() !== SECRET_CODE) {
+                ctx.status = 403;
+                ctx.body = { error: 'Invalid signup code' };
+                return;
+            }
         }
         const existingUser = yield (0, users_1.findByUsername)(username);
         if (existingUser.length > 0) {
@@ -39,16 +41,26 @@ const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
             username,
             password: hashedPassword,
             email,
-            role: 'operator',
-            avatarurl: '',
-            signupCode, // Pass signupCode to add
+            role,
+            avatarurl: null,
+            signupCode: role === 'operator' ? signupCode : null,
         };
-        const userId = yield (0, users_1.add)(newUser);
-        const token = jsonwebtoken_1.default.sign({ id: userId, username, role: 'operator' }, JWT_SECRET, { expiresIn: '1h' });
-        ctx.status = 201;
-        ctx.body = { token, username, email, role: 'operator' };
+        console.log('New user to add:', newUser);
+        try {
+            const userId = yield (0, users_1.add)(newUser);
+            const token = jsonwebtoken_1.default.sign({ id: userId, username, role }, JWT_SECRET, { expiresIn: '1h' });
+            ctx.status = 201;
+            ctx.body = { token, username, email, role };
+        }
+        catch (dbError) {
+            console.error('Database error:', dbError);
+            ctx.status = 500;
+            ctx.body = { error: 'Failed to create user: ' + dbError.message };
+            return;
+        }
     }
     catch (error) {
+        console.error('Registration error:', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }
@@ -57,23 +69,24 @@ const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
 exports.register = register;
 const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { username, password } = (0, validation_1.validate)(auth_1.loginSchema, ctx.request.body);
+        console.log('Login request body:', ctx.request.body);
+        const { username, password } = ctx.request.body;
         const users = yield (0, users_1.findByUsername)(username);
         console.log('Users found:', users);
-        if (!Array.isArray(users) || users.length === 0) {
+        if (!users.length) {
             ctx.status = 404;
             ctx.body = { error: 'User not found' };
             return;
         }
         const user = users[0];
         if (!user || !user.password) {
-            ctx.status = 404;
+            ctx.status = 400;
             ctx.body = { error: 'User data incomplete' };
             return;
         }
-        console.log('Comparing password:', password, 'with hashed:', user.password); // Add this
+        console.log('Comparing password:', password, 'with hash:', user.password);
         const isValid = yield bcrypt_1.default.compare(password, user.password);
-        console.log('Password valid:', isValid); // Add this
+        console.log('Password valid:', isValid);
         if (!isValid) {
             ctx.status = 401;
             ctx.body = { error: 'Invalid password' };
@@ -84,6 +97,7 @@ const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
         ctx.body = { token, id: user.id, username: user.username, role: user.role };
     }
     catch (error) {
+        console.error('Login error:', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }

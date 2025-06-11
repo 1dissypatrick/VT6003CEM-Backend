@@ -1,6 +1,5 @@
 import * as db from '../helpers/database';
 import { User } from '../schema/user.schema';
-import bcrypt from 'bcrypt';
 
 export const getAll = async (limit: number = 20, page: number = 1): Promise<User[]> => {
   const offset = (page - 1) * limit;
@@ -28,7 +27,6 @@ export const getByUserId = async (id: number): Promise<User | null> => {
 export const findByUsername = async (username: string): Promise<User[]> => {
   const query = 'SELECT id, username, password, email, role, avatarurl FROM users WHERE username = :username';
   const result = await db.run_query<User>(query, { username });
-  // Ensure result is an array, even if a single object is returned
   return Array.isArray(result) ? result : [result].filter(Boolean) as User[];
 };
 
@@ -38,45 +36,9 @@ export const getByEmail = async (email: string): Promise<User[]> => {
   return results ?? [];
 };
 
-// export const add = async (user: Omit<User, 'id'> & { signupCode?: string }): Promise<number> => {
-//   const { username, password, email, role, avatarurl, signupCode } = user;
-//   console.log('Received signupCode:', signupCode);
-//   if (signupCode?.toUpperCase() !== 'WANDERLUST2025') {
-//     throw new Error('Invalid signup code');
-//   }
-//   if (!username || !password || !email || !role) {
-//     throw new Error('Missing required fields');
-//   }
-//   const existingUsers = await findByUsername(username);
-//   const existingEmails = await getByEmail(email);
-//   if (existingUsers.length > 0 || existingEmails.length > 0) {
-//     throw new Error('User already exists');
-//   }
-//   const hashedPassword = await bcrypt.hash(password, 10);
-//   console.log('Generated hash for', username, ':', hashedPassword); // Add this
-//   const query =
-//     'INSERT INTO users (username, password, email, role, avatarurl) VALUES (:username, :password, :email, :role, :avatarurl) RETURNING id';
-//   try {
-//     const result = await db.run_insert<{ id: number }>(query, {
-//       username,
-//       password: hashedPassword,
-//       email,
-//       role,
-//       avatarurl: avatarurl || null,
-//     });
-//     console.log('User inserted with ID:', result.id); // Add this
-//     return result.id;
-//   } catch (error) {
-//     console.error('Insert error:', error); // Add this
-//     throw new Error(`Failed to add user: ${(error as Error).message}`);
-//   }
-// };
-export const add = async (user: Omit<User, 'id'> & { signupCode?: string }): Promise<number> => {
+export const add = async (user: Omit<User, 'id'> & { signupCode?: string | null }): Promise<number> => {
   const { username, password, email, role, avatarurl, signupCode } = user;
   console.log('Received signupCode:', signupCode);
-  if (signupCode?.toUpperCase() !== 'WANDERLUST2025') {
-    throw new Error('Invalid signup code');
-  }
   if (!username || !password || !email || !role) {
     throw new Error('Missing required fields');
   }
@@ -85,10 +47,9 @@ export const add = async (user: Omit<User, 'id'> & { signupCode?: string }): Pro
   if (existingUsers.length > 0 || existingEmails.length > 0) {
     throw new Error('User already exists');
   }
-  // Remove redundant hashing; use password as provided (already hashed in register)
   console.log('Using provided hash for', username, ':', password);
   const query =
-    'INSERT INTO users (username, password, email, role, avatarurl) VALUES (:username, :password, :email, :role, :avatarurl) RETURNING id';
+    'INSERT INTO users (username, password, email, role, avatarurl, signupcode) VALUES (:username, :password, :email, :role, :avatarurl, :signupcode) RETURNING id';
   try {
     const result = await db.run_insert<{ id: number }>(query, {
       username,
@@ -96,6 +57,7 @@ export const add = async (user: Omit<User, 'id'> & { signupCode?: string }): Pro
       email,
       role,
       avatarurl: avatarurl || null,
+      signupcode: signupCode || null,
     });
     console.log('User inserted with ID:', result.id);
     return result.id;

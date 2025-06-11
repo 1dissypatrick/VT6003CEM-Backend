@@ -1,8 +1,6 @@
 import { Context, Next } from 'koa';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { validate } from './validation';
-import { registerSchema, loginSchema, RegisterData, LoginData } from '../schema/auth';
 import { findByUsername, add } from '../models/users';
 import { User } from '../schema/user.schema';
 
@@ -11,11 +9,21 @@ const JWT_SECRET = process.env.JWT_SECRET || '7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d
 
 export const register = async (ctx: Context, next: Next) => {
   try {
-    const { username, password, signupCode, email } = validate<RegisterData>(registerSchema, ctx.request.body);
-    if (signupCode !== SECRET_CODE) {
-      ctx.status = 403;
-      ctx.body = { error: 'Invalid sign-up code' };
-      return;
+    console.log('Request body:', ctx.request.body);
+    const { username, password, signupCode, email, role = 'user' } = ctx.request.body as {
+      username: string;
+      password: string;
+      signupCode?: string;
+      email: string;
+      role?: 'user' | 'operator';
+    };
+    console.log('Validated data:', { username, password, signupCode, email, role });
+    if (role === 'operator') {
+      if (!signupCode || signupCode.toUpperCase() !== SECRET_CODE) {
+        ctx.status = 403;
+        ctx.body = { error: 'Invalid signup code' };
+        return;
+      }
     }
     const existingUser = await findByUsername(username);
     if (existingUser.length > 0) {
@@ -24,19 +32,28 @@ export const register = async (ctx: Context, next: Next) => {
       return;
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser: Omit<User, 'id'> & { signupCode?: string } = {
+    const newUser: Omit<User, 'id'> & { signupCode?: string | null } = {
       username,
       password: hashedPassword,
       email,
-      role: 'operator',
-      avatarurl: '',
-      signupCode, // Pass signupCode to add
+      role,
+      avatarurl: null,
+      signupCode: role === 'operator' ? signupCode : null,
     };
-    const userId = await add(newUser);
-    const token = jwt.sign({ id: userId, username, role: 'operator' }, JWT_SECRET, { expiresIn: '1h' });
-    ctx.status = 201;
-    ctx.body = { token, username, email, role: 'operator' };
+    console.log('New user to add:', newUser);
+    try {
+      const userId = await add(newUser);
+      const token = jwt.sign({ id: userId, username, role }, JWT_SECRET, { expiresIn: '1h' });
+      ctx.status = 201;
+      ctx.body = { token, username, email, role };
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      ctx.status = 500;
+      ctx.body = { error: 'Failed to create user: ' + (dbError as Error).message };
+      return;
+    }
   } catch (error) {
+    console.error('Registration error:', error);
     ctx.status = 500;
     ctx.body = { error: (error as Error).message };
   }
@@ -45,23 +62,24 @@ export const register = async (ctx: Context, next: Next) => {
 
 export const login = async (ctx: Context, next: Next) => {
   try {
-    const { username, password } = validate<LoginData>(loginSchema, ctx.request.body);
+    console.log('Login request body:', ctx.request.body);
+    const { username, password } = ctx.request.body as { username: string; password: string };
     const users = await findByUsername(username);
     console.log('Users found:', users);
-    if (!Array.isArray(users) || users.length === 0) {
+    if (!users.length) {
       ctx.status = 404;
       ctx.body = { error: 'User not found' };
       return;
     }
     const user = users[0];
     if (!user || !user.password) {
-      ctx.status = 404;
+      ctx.status = 400;
       ctx.body = { error: 'User data incomplete' };
       return;
     }
-    console.log('Comparing password:', password, 'with hashed:', user.password); // Add this
+    console.log('Comparing password:', password, 'with hash:', user.password);
     const isValid = await bcrypt.compare(password, user.password);
-    console.log('Password valid:', isValid); // Add this
+    console.log('Password valid:', isValid);
     if (!isValid) {
       ctx.status = 401;
       ctx.body = { error: 'Invalid password' };
@@ -71,6 +89,7 @@ export const login = async (ctx: Context, next: Next) => {
     ctx.status = 200;
     ctx.body = { token, id: user.id, username: user.username, role: user.role };
   } catch (error) {
+    console.error('Login error:', error);
     ctx.status = 500;
     ctx.body = { error: (error as Error).message };
   }
