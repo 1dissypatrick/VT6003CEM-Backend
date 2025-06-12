@@ -52,13 +52,12 @@ const auth_1 = require("../controllers/auth");
 const validation_1 = require("../controllers/validation");
 const hotel_1 = require("../schema/hotel");
 const model = __importStar(require("../models/hotels"));
-const axios_1 = __importDefault(require("axios")); // For social media posting
+const axios_1 = __importDefault(require("axios"));
 const prefix = '/api/v1/hotels';
 const router = new koa_router_1.default({ prefix });
 exports.router = router;
 const postToSocialMedia = (hotel) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        // Mock social media API (replace with real API, e.g., Twitter, Facebook)
         yield axios_1.default.post('https://api.mock-social-media.com/post', {
             message: `New hotel listed: ${hotel.name} in ${hotel.location} for $${hotel.price}/night!`,
         });
@@ -68,7 +67,6 @@ const postToSocialMedia = (hotel) => __awaiter(void 0, void 0, void 0, function*
         console.error('Failed to post to social media:', error.message);
     }
 });
-// Middleware to inject createdBy from JWT
 const injectCreatedBy = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     console.log('injectCreatedBy: User:', ctx.state.user);
@@ -86,12 +84,15 @@ const injectCreatedBy = (ctx, next) => __awaiter(void 0, void 0, void 0, functio
 });
 const getAll = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { limit = '10', page = '1', search = '', location = '', minPrice, maxPrice } = ctx.request.query;
+    console.log('getAll: Query params:', { limit, page, search, location, minPrice, maxPrice });
     try {
         const hotels = yield model.getAll(parseInt(limit, 10), parseInt(page, 10), search, location, minPrice ? parseFloat(minPrice) : undefined, maxPrice ? parseFloat(maxPrice) : undefined);
+        console.log('getAll: Hotels retrieved:', hotels, 'Count:', hotels.length);
         ctx.status = 200;
         ctx.body = hotels;
     }
     catch (error) {
+        console.error('getAll: Error:', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }
@@ -99,6 +100,7 @@ const getAll = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
 });
 const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
+    console.log('getById: Hotel ID:', id);
     if (isNaN(id)) {
         ctx.status = 400;
         ctx.body = { error: 'Invalid hotel ID' };
@@ -106,6 +108,7 @@ const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     }
     try {
         const hotel = yield model.getById(id);
+        console.log('getById: Hotel retrieved:', hotel);
         if (hotel) {
             ctx.status = 200;
             ctx.body = hotel;
@@ -116,6 +119,7 @@ const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
         }
     }
     catch (error) {
+        console.error('getById: Error:', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }
@@ -123,9 +127,11 @@ const getById = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
 });
 const createHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const hotel = ctx.request.body;
-    const { postToSocial = false } = ctx.request.body; // Default to false
+    const { postToSocial = false } = ctx.request.body;
+    console.log('createHotel: Hotel data:', hotel, 'postToSocial:', postToSocial);
     try {
         const result = yield model.add(hotel);
+        console.log('createHotel: Result:', result);
         if (result.status === 201) {
             const newHotel = Object.assign(Object.assign({}, hotel), { id: result.data });
             if (postToSocial) {
@@ -140,6 +146,7 @@ const createHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
         }
     }
     catch (error) {
+        console.error('createHotel: Error:', error);
         ctx.status = 400;
         ctx.body = { error: error.message };
     }
@@ -147,14 +154,17 @@ const createHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 const updateHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
+    console.log('updateHotel: Hotel ID:', id);
     if (isNaN(id)) {
         ctx.status = 400;
         ctx.body = { error: 'Invalid hotel ID' };
         return;
     }
     const hotel = ctx.request.body;
+    console.log('updateHotel: Hotel data:', hotel);
     try {
         const result = yield model.update(hotel, id);
+        console.log('updateHotel: Result:', result);
         if (result.status === 200) {
             ctx.status = 200;
             ctx.body = result.data;
@@ -165,6 +175,7 @@ const updateHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
         }
     }
     catch (error) {
+        console.error('updateHotel: Error:', error);
         ctx.status = 400;
         ctx.body = { error: error.message };
     }
@@ -172,7 +183,7 @@ const updateHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 const deleteHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     const id = parseInt(ctx.params.id, 10);
-    console.log(`deleteHotel: Attempting to delete hotel with id=${id}`);
+    console.log('deleteHotel: Attempting to delete hotel id=', id);
     if (isNaN(id)) {
         ctx.status = 400;
         ctx.body = { error: 'Invalid hotel ID' };
@@ -180,12 +191,12 @@ const deleteHotel = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
     }
     try {
         const result = yield model.deleteById(id);
-        console.log(`deleteHotel: Result for id=${id}:`, result);
+        console.log('deleteHotel: Result for id=', id, ':', result);
         ctx.status = result.status;
         ctx.body = result.status === 200 ? { message: `Hotel with id ${id} deleted` } : { error: 'Hotel not found' };
     }
     catch (error) {
-        console.error(`deleteHotel: Error for id=${id}:`, error);
+        console.error('deleteHotel: Error for id=', id, ':', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }

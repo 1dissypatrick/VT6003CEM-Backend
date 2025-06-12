@@ -32,12 +32,14 @@ export const getAll = async (
   values.limit = limit;
   values.offset = offset;
   const results = await db.run_query<Hotel>(query, values);
+  console.log('getAll model: Database results:', results);
   return results ?? [];
 };
 
 export const getById = async (id: number): Promise<Hotel | null> => {
   const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = :id';
   const results = await db.run_query<Hotel>(query, { id });
+  console.log('getById model: Database results for id=', id, ':', results);
   return results.length > 0 ? results[0] : null;
 };
 
@@ -58,8 +60,10 @@ export const add = async (hotel: Omit<Hotel, 'id'>): Promise<{ status: number; d
       rating: rating || null,
       createdBy,
     });
+    console.log('add model: Inserted hotel id=', result.id);
     return { status: 201, data: result.id };
   } catch (error) {
+    console.error('add model: Error:', error);
     throw new Error(`Failed to add hotel: ${(error as Error).message}`);
   }
 };
@@ -69,7 +73,6 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
   if (keys.length === 0) {
     return { status: 400, data: {} as Hotel };
   }
-  // Map camelCase to snake_case for database columns
   const keyMap: { [key: string]: string } = {
     imageUrl: 'image_url',
     createdBy: 'created_by',
@@ -89,8 +92,10 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
   const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING *`;
   try {
     const result = await db.run_update<Hotel>(query, values);
+    console.log('update model: Updated hotel id=', id, 'result:', result);
     return result.length > 0 ? { status: 200, data: result[0] } : { status: 404, data: {} as Hotel };
   } catch (error) {
+    console.error('update model: Error:', error);
     throw new Error(`Failed to update hotel: ${(error as Error).message}`);
   }
 };
@@ -99,8 +104,10 @@ export const deleteById = async (id: number): Promise<{ status: number }> => {
   const query = 'DELETE FROM hotels WHERE id = :id';
   try {
     const result = await db.run_delete(query, { id });
+    console.log('deleteById model: Deleted hotel id=', id, 'rowsAffected:', result.rowsAffected);
     return result.rowsAffected > 0 ? { status: 200 } : { status: 404 };
   } catch (error) {
+    console.error('deleteById model: Error:', error);
     throw new Error(`Failed to delete hotel: ${(error as Error).message}`);
   }
 };

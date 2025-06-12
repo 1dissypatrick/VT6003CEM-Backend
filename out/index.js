@@ -1,4 +1,14 @@
 "use strict";
+// import 'dotenv/config';
+// import Koa from 'koa';
+// import Router from 'koa-router';
+// import logger from 'koa-logger';
+// import json from 'koa-json';
+// import bodyParser from 'koa-bodyparser';
+// import cors from '@koa/cors';
+// import { router as userRouter } from './routes/users';
+// import { router as hotels } from './routes/hotels';
+// import serve from 'koa-static';
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -12,6 +22,32 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// const app: Koa = new Koa();
+// const router: Router = new Router();
+// app.use(serve('./docs'));
+// app.use(cors({ origin: 'http://localhost:5173' }));
+// app.use(logger());
+// app.use(json());
+// app.use(bodyParser());
+// app.use(router.routes());
+// app.use(userRouter.middleware());
+// app.use(hotels.middleware());
+// app.use(async (ctx: any, next: any) => {
+//   try {
+//     await next();
+//     if (ctx.status === 404) {
+//       ctx.body = { error: 'No such endpoint exists' };
+//     }
+//   } catch (err: any) {
+//     ctx.status = 500;
+//     ctx.body = { error: err.message };
+//   }
+// });
+// const port = process.env.PORT || 10888;
+// app.listen(port, () => {
+//   console.log(`Server running on port ${port}`);
+// });
+// export default app;
 require("dotenv/config");
 const koa_1 = __importDefault(require("koa"));
 const koa_router_1 = __importDefault(require("koa-router"));
@@ -24,22 +60,23 @@ const hotels_1 = require("./routes/hotels");
 const koa_static_1 = __importDefault(require("koa-static"));
 const app = new koa_1.default();
 const router = new koa_router_1.default();
-app.use((0, koa_static_1.default)('./docs'));
-app.use((0, cors_1.default)({ origin: 'http://localhost:5173' }));
 app.use((0, koa_logger_1.default)());
 app.use((0, koa_json_1.default)());
 app.use((0, koa_bodyparser_1.default)());
-app.use(router.routes());
-app.use(users_1.router.middleware());
-app.use(hotels_1.router.middleware());
+app.use((0, cors_1.default)({ origin: 'http://localhost:5173' }));
+app.use((0, koa_static_1.default)('./docs'));
+app.use(users_1.router.routes()).use(users_1.router.allowedMethods());
+app.use(hotels_1.router.routes()).use(hotels_1.router.allowedMethods());
+app.use(router.routes()).use(router.allowedMethods());
 app.use((ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield next();
-        if (ctx.status === 404) {
-            ctx.body = { error: 'No such endpoint exists' };
+        if (ctx.status === 404 && !ctx.body) {
+            ctx.body = { error: 'Not found' };
         }
     }
     catch (err) {
+        console.error('Error:', err);
         ctx.status = 500;
         ctx.body = { error: err.message };
     }

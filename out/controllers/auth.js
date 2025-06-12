@@ -20,9 +20,9 @@ const SECRET_CODE = 'WANDERLUST2025';
 const JWT_SECRET = process.env.JWT_SECRET || '7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2';
 const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Request body:', ctx.request.body);
+        console.log('register: Request body:', ctx.request.body);
         const { username, password, signupCode, email, role = 'user' } = ctx.request.body;
-        console.log('Validated data:', { username, password, signupCode, email, role });
+        console.log('register: Validated data:', { username, password, signupCode, email, role });
         if (role === 'operator') {
             if (!signupCode || signupCode.toUpperCase() !== SECRET_CODE) {
                 ctx.status = 403;
@@ -45,7 +45,7 @@ const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
             avatarurl: null,
             signupCode: role === 'operator' ? signupCode : null,
         };
-        console.log('New user to add:', newUser);
+        console.log('register: New user to add:', newUser);
         try {
             const userId = yield (0, users_1.add)(newUser);
             const token = jsonwebtoken_1.default.sign({ id: userId, username, role }, JWT_SECRET, { expiresIn: '1h' });
@@ -53,14 +53,14 @@ const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
             ctx.body = { token, username, email, role };
         }
         catch (dbError) {
-            console.error('Database error:', dbError);
+            console.error('register: Database error:', dbError);
             ctx.status = 500;
             ctx.body = { error: 'Failed to create user: ' + dbError.message };
             return;
         }
     }
     catch (error) {
-        console.error('Registration error:', error);
+        console.error('register: Error:', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }
@@ -69,10 +69,10 @@ const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
 exports.register = register;
 const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Login request body:', ctx.request.body);
+        console.log('login: Request body:', ctx.request.body);
         const { username, password } = ctx.request.body;
         const users = yield (0, users_1.findByUsername)(username);
-        console.log('Users found:', users);
+        console.log('login: Users found:', users);
         if (!users.length) {
             ctx.status = 404;
             ctx.body = { error: 'User not found' };
@@ -84,20 +84,21 @@ const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
             ctx.body = { error: 'User data incomplete' };
             return;
         }
-        console.log('Comparing password:', password, 'with hash:', user.password);
+        console.log('login: Comparing password for user:', username);
         const isValid = yield bcrypt_1.default.compare(password, user.password);
-        console.log('Password valid:', isValid);
+        console.log('login: Password valid:', isValid);
         if (!isValid) {
             ctx.status = 401;
             ctx.body = { error: 'Invalid password' };
             return;
         }
         const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+        console.log('login: Token generated for user:', username);
         ctx.status = 200;
         ctx.body = { token, id: user.id, username: user.username, role: user.role };
     }
     catch (error) {
-        console.error('Login error:', error);
+        console.error('login: Error:', error);
         ctx.status = 500;
         ctx.body = { error: error.message };
     }
@@ -105,8 +106,10 @@ const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
 });
 exports.login = login;
 const authMiddleware = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log('authMiddleware: Method:', ctx.method, 'Path:', ctx.path, 'Auth:', ctx.headers.authorization);
     const authHeader = ctx.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('authMiddleware: No token provided');
         ctx.status = 401;
         ctx.body = { error: 'No token provided' };
         return;
@@ -114,18 +117,22 @@ const authMiddleware = (ctx, next) => __awaiter(void 0, void 0, void 0, function
     const token = authHeader.split(' ')[1];
     try {
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        console.log('authMiddleware: Decoded token:', decoded);
         ctx.state.user = decoded;
         yield next();
     }
     catch (error) {
+        console.error('authMiddleware: Invalid token:', error);
         ctx.status = 401;
         ctx.body = { error: 'Invalid token' };
     }
 });
 exports.authMiddleware = authMiddleware;
 const operatorOnly = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
+    console.log('operatorOnly: User:', ctx.state.user);
     if (!((_a = ctx.state.user) === null || _a === void 0 ? void 0 : _a.role) || ctx.state.user.role !== 'operator') {
+        console.log('operatorOnly: Access denied, role:', (_b = ctx.state.user) === null || _b === void 0 ? void 0 : _b.role);
         ctx.status = 403;
         ctx.body = { error: 'Operator access required' };
         return;

@@ -68,12 +68,14 @@ const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (
     values.limit = limit;
     values.offset = offset;
     const results = yield db.run_query(query, values);
+    console.log('getAll model: Database results:', results);
     return results !== null && results !== void 0 ? results : [];
 });
 exports.getAll = getAll;
 const getById = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = :id';
     const results = yield db.run_query(query, { id });
+    console.log('getById model: Database results for id=', id, ':', results);
     return results.length > 0 ? results[0] : null;
 });
 exports.getById = getById;
@@ -93,9 +95,11 @@ const add = (hotel) => __awaiter(void 0, void 0, void 0, function* () {
             rating: rating || null,
             createdBy,
         });
+        console.log('add model: Inserted hotel id=', result.id);
         return { status: 201, data: result.id };
     }
     catch (error) {
+        console.error('add model: Error:', error);
         throw new Error(`Failed to add hotel: ${error.message}`);
     }
 });
@@ -105,7 +109,6 @@ const update = (hotel, id) => __awaiter(void 0, void 0, void 0, function* () {
     if (keys.length === 0) {
         return { status: 400, data: {} };
     }
-    // Map camelCase to snake_case for database columns
     const keyMap = {
         imageUrl: 'image_url',
         createdBy: 'created_by',
@@ -122,9 +125,11 @@ const update = (hotel, id) => __awaiter(void 0, void 0, void 0, function* () {
     const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING *`;
     try {
         const result = yield db.run_update(query, values);
+        console.log('update model: Updated hotel id=', id, 'result:', result);
         return result.length > 0 ? { status: 200, data: result[0] } : { status: 404, data: {} };
     }
     catch (error) {
+        console.error('update model: Error:', error);
         throw new Error(`Failed to update hotel: ${error.message}`);
     }
 });
@@ -133,9 +138,11 @@ const deleteById = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const query = 'DELETE FROM hotels WHERE id = :id';
     try {
         const result = yield db.run_delete(query, { id });
+        console.log('deleteById model: Deleted hotel id=', id, 'rowsAffected:', result.rowsAffected);
         return result.rowsAffected > 0 ? { status: 200 } : { status: 404 };
     }
     catch (error) {
+        console.error('deleteById model: Error:', error);
         throw new Error(`Failed to delete hotel: ${error.message}`);
     }
 });
