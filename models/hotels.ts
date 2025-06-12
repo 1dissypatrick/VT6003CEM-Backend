@@ -10,7 +10,7 @@ export const getAll = async (
   maxPrice?: number
 ): Promise<Hotel[]> => {
   const offset = (page - 1) * limit;
-  let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id IS NOT NULL';
+  let query = 'SELECT id, name, location, CAST(price AS FLOAT) AS price, availability, amenities, image_url AS imageUrl, description, CAST(rating AS FLOAT) AS rating, created_by AS createdBy FROM hotels WHERE id IS NOT NULL';
   const values: any = {};
   if (search) {
     query += ` AND name ILIKE :search`;
@@ -37,7 +37,7 @@ export const getAll = async (
 };
 
 export const getById = async (id: number): Promise<Hotel | null> => {
-  const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = :id';
+  const query = 'SELECT id, name, location, CAST(price AS FLOAT) AS price, availability, amenities, image_url AS imageUrl, description, CAST(rating AS FLOAT) AS rating, created_by AS createdBy FROM hotels WHERE id = :id';
   const results = await db.run_query<Hotel>(query, { id });
   console.log('getById model: Database results for id=', id, ':', results);
   return results.length > 0 ? results[0] : null;
@@ -89,7 +89,7 @@ export const update = async (hotel: Partial<Hotel>, id: number): Promise<{ statu
     ...acc,
     [key]: key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key],
   }), { id });
-  const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING *`;
+  const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING id, name, location, CAST(price AS FLOAT) AS price, availability, amenities, image_url AS imageUrl, description, CAST(rating AS FLOAT) AS rating, created_by AS createdBy`;
   try {
     const result = await db.run_update<Hotel>(query, values);
     console.log('update model: Updated hotel id=', id, 'result:', result);

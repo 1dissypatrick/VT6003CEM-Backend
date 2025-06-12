@@ -46,7 +46,7 @@ exports.deleteById = exports.update = exports.add = exports.getById = exports.ge
 const db = __importStar(require("../helpers/database"));
 const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (limit = 10, page = 1, search = '', location = '', minPrice, maxPrice) {
     const offset = (page - 1) * limit;
-    let query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id IS NOT NULL';
+    let query = 'SELECT id, name, location, CAST(price AS FLOAT) AS price, availability, amenities, image_url AS imageUrl, description, CAST(rating AS FLOAT) AS rating, created_by AS createdBy FROM hotels WHERE id IS NOT NULL';
     const values = {};
     if (search) {
         query += ` AND name ILIKE :search`;
@@ -73,7 +73,7 @@ const getAll = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (
 });
 exports.getAll = getAll;
 const getById = (id) => __awaiter(void 0, void 0, void 0, function* () {
-    const query = 'SELECT id, name, location, price, availability, amenities, image_url, description, rating, created_by FROM hotels WHERE id = :id';
+    const query = 'SELECT id, name, location, CAST(price AS FLOAT) AS price, availability, amenities, image_url AS imageUrl, description, CAST(rating AS FLOAT) AS rating, created_by AS createdBy FROM hotels WHERE id = :id';
     const results = yield db.run_query(query, { id });
     console.log('getById model: Database results for id=', id, ':', results);
     return results.length > 0 ? results[0] : null;
@@ -122,7 +122,7 @@ const update = (hotel, id) => __awaiter(void 0, void 0, void 0, function* () {
     })
         .join(', ');
     const values = keys.reduce((acc, key) => (Object.assign(Object.assign({}, acc), { [key]: key === 'availability' || key === 'amenities' ? JSON.stringify(hotel[key]) : hotel[key] })), { id });
-    const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING *`;
+    const query = `UPDATE hotels SET ${setClause} WHERE id = :id RETURNING id, name, location, CAST(price AS FLOAT) AS price, availability, amenities, image_url AS imageUrl, description, CAST(rating AS FLOAT) AS rating, created_by AS createdBy`;
     try {
         const result = yield db.run_update(query, values);
         console.log('update model: Updated hotel id=', id, 'result:', result);
