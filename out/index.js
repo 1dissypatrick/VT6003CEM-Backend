@@ -22,6 +22,7 @@ const cors_1 = __importDefault(require("@koa/cors"));
 const users_1 = require("./routes/users");
 const hotels_1 = require("./routes/hotels");
 const favorites_1 = require("./routes/favorites");
+const messages_1 = require("./routes/messages"); // Add this
 const koa_static_1 = __importDefault(require("koa-static"));
 const app = new koa_1.default();
 const router = new koa_router_1.default();
@@ -33,6 +34,7 @@ app.use((0, koa_static_1.default)('./docs'));
 app.use(users_1.router.routes()).use(users_1.router.allowedMethods());
 app.use(hotels_1.router.routes()).use(hotels_1.router.allowedMethods());
 app.use(favorites_1.router.routes()).use(favorites_1.router.allowedMethods());
+app.use(messages_1.router.routes()).use(messages_1.router.allowedMethods()); // Add this
 app.use(router.routes()).use(router.allowedMethods());
 app.use((ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {

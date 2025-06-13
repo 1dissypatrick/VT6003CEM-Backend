@@ -45,9 +45,7 @@ function run_query(query, values) {
             };
             console.log('run_query: Executing query:', query, 'with values:', values);
             const results = yield exports.sequelize.query(query, options);
-            console.log('run_query: Raw Sequelize results:', results);
             const rows = Array.isArray(results[0]) ? results[0] : results;
-            console.log('run_query: Extracted rows:', rows);
             const resultArray = Array.isArray(rows) ? rows : rows ? [rows] : [];
             console.log('run_query: Processed results:', resultArray);
             return resultArray;
@@ -61,11 +59,12 @@ function run_query(query, values) {
 function run_insert(query, values) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const options = { replacements: values, type: sequelize_1.QueryTypes.INSERT };
+            const options = { replacements: values, type: sequelize_1.QueryTypes.INSERT, raw: true };
             console.log('run_insert: Query:', query, 'with values:', values);
-            const [results] = yield exports.sequelize.query(query, options);
-            console.log('run_insert: Results:', results);
-            return results[0];
+            const results = yield exports.sequelize.query(query, options);
+            const rows = Array.isArray(results[0]) ? results[0] : results;
+            console.log('run_insert: Results:', rows);
+            return rows[0];
         }
         catch (error) {
             console.error('run_insert: Failed:', query, 'Values:', values, 'Error:', error);
@@ -76,14 +75,16 @@ function run_insert(query, values) {
 function run_update(query, values) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const options = { replacements: values, type: sequelize_1.QueryTypes.UPDATE };
+            const options = { replacements: values, type: sequelize_1.QueryTypes.UPDATE, raw: true };
             console.log('run_update: Query:', query, 'with values:', values);
-            const [results] = yield exports.sequelize.query(query, options);
-            console.log('run_update: Results:', results);
-            return Array.isArray(results) ? results : [];
+            const results = yield exports.sequelize.query(query, options);
+            const rows = Array.isArray(results[0]) ? results[0] : results;
+            const resultArray = Array.isArray(rows) ? rows : rows ? [rows] : [];
+            console.log('run_update: Results:', resultArray);
+            return resultArray;
         }
         catch (error) {
-            console.error('run_update: Failed:', query, 'Values:', error);
+            console.error('run_update: Failed:', query, 'Values:', values, 'Error:', error);
             throw error;
         }
     });
@@ -91,12 +92,11 @@ function run_update(query, values) {
 function run_delete(query, values) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const options = { replacements: values, type: sequelize_1.QueryTypes.DELETE };
+            const options = { replacements: values, type: sequelize_1.QueryTypes.DELETE, raw: true };
             console.log('run_delete: Original query:', query, 'with values:', values);
             const modifiedQuery = query.trim() + ' RETURNING id';
             console.log('run_delete: Executing query:', modifiedQuery, 'with values:', values);
             const results = yield exports.sequelize.query(modifiedQuery, options);
-            console.log('run_delete: Raw results:', results);
             const rows = Array.isArray(results[0]) ? results[0] : results;
             const rowsAffected = Array.isArray(rows) ? rows.length : 0;
             console.log('run_delete: Rows affected:', rowsAffected);

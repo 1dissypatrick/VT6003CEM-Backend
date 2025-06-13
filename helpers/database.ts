@@ -27,9 +27,7 @@ export async function run_query<T>(query: string, values: any[] | Record<string,
     };
     console.log('run_query: Executing query:', query, 'with values:', values);
     const results = await sequelize.query(query, options);
-    console.log('run_query: Raw Sequelize results:', results);
     const rows = Array.isArray(results[0]) ? results[0] : results;
-    console.log('run_query: Extracted rows:', rows);
     const resultArray = Array.isArray(rows) ? rows : rows ? [rows] : [];
     console.log('run_query: Processed results:', resultArray);
     return resultArray as T[];
@@ -41,11 +39,12 @@ export async function run_query<T>(query: string, values: any[] | Record<string,
 
 export async function run_insert<T>(query: string, values: any[] | Record<string, any>): Promise<T> {
   try {
-    const options: QueryOptions = { replacements: values, type: QueryTypes.INSERT };
+    const options: QueryOptions = { replacements: values, type: QueryTypes.INSERT, raw: true };
     console.log('run_insert: Query:', query, 'with values:', values);
-    const [results] = await sequelize.query(query, options);
-    console.log('run_insert: Results:', results);
-    return results[0] as T;
+    const results = await sequelize.query(query, options);
+    const rows = Array.isArray(results[0]) ? results[0] : results;
+    console.log('run_insert: Results:', rows);
+    return rows[0] as T;
   } catch (error) {
     console.error('run_insert: Failed:', query, 'Values:', values, 'Error:', error);
     throw error;
@@ -54,25 +53,26 @@ export async function run_insert<T>(query: string, values: any[] | Record<string
 
 export async function run_update<T>(query: string, values: any[] | Record<string, any>): Promise<T[]> {
   try {
-    const options: QueryOptions = { replacements: values, type: QueryTypes.UPDATE };
+    const options: QueryOptions = { replacements: values, type: QueryTypes.UPDATE, raw: true };
     console.log('run_update: Query:', query, 'with values:', values);
-    const [results] = await sequelize.query(query, options);
-    console.log('run_update: Results:', results);
-    return Array.isArray(results) ? results as T[] : [];
+    const results = await sequelize.query(query, options);
+    const rows = Array.isArray(results[0]) ? results[0] : results;
+    const resultArray = Array.isArray(rows) ? rows : rows ? [rows] : [];
+    console.log('run_update: Results:', resultArray);
+    return resultArray as T[];
   } catch (error) {
-    console.error('run_update: Failed:', query, 'Values:', error);
+    console.error('run_update: Failed:', query, 'Values:', values, 'Error:', error);
     throw error;
   }
 }
 
 export async function run_delete(query: string, values: any[] | Record<string, any>): Promise<{ rowsAffected: number }> {
   try {
-    const options: QueryOptions = { replacements: values, type: QueryTypes.DELETE };
+    const options: QueryOptions = { replacements: values, type: QueryTypes.DELETE, raw: true };
     console.log('run_delete: Original query:', query, 'with values:', values);
     const modifiedQuery = query.trim() + ' RETURNING id';
     console.log('run_delete: Executing query:', modifiedQuery, 'with values:', values);
     const results = await sequelize.query(modifiedQuery, options);
-    console.log('run_delete: Raw results:', results);
     const rows = Array.isArray(results[0]) ? results[0] : results;
     const rowsAffected = Array.isArray(rows) ? rows.length : 0;
     console.log('run_delete: Rows affected:', rowsAffected);
