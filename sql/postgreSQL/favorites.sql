@@ -1,0 +1,8 @@
+CREATE TABLE favorites (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  hotel_name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, hotel_id)
+);
