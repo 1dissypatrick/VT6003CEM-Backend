@@ -45,7 +45,7 @@ export const register = async (ctx: Context, next: Next) => {
       const userId = await add(newUser);
       const token = jwt.sign({ id: userId, username, role }, JWT_SECRET, { expiresIn: '1h' });
       ctx.status = 201;
-      ctx.body = { token, username, email, role };
+      ctx.body = { token, username, email, role, avatarurl: null };
     } catch (dbError) {
       console.error('register: Database error:', dbError);
       ctx.status = 500;
@@ -88,7 +88,7 @@ export const login = async (ctx: Context, next: Next) => {
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
     console.log('login: Token generated for user:', username);
     ctx.status = 200;
-    ctx.body = { token, id: user.id, username: user.username, role: user.role };
+    ctx.body = { token, id: user.id, username: user.username, role: user.role, email: user.email, avatarurl: user.avatarurl };
   } catch (error) {
     console.error('login: Error:', error);
     ctx.status = 500;
