@@ -3,9 +3,12 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { findByUsername, add } from '../models/users';
 import { User } from '../schema/user.schema';
+import { OAuth2Client } from 'google-auth-library';
 
 const SECRET_CODE = 'WANDERLUST2025';
 const JWT_SECRET = process.env.JWT_SECRET || '7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'your-google-client-id'; // Set in .env
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 export const register = async (ctx: Context, next: Next) => {
   try {
@@ -91,6 +94,73 @@ export const login = async (ctx: Context, next: Next) => {
     ctx.body = { token, id: user.id, username: user.username, role: user.role, email: user.email, avatarurl: user.avatarurl };
   } catch (error) {
     console.error('login: Error:', error);
+    ctx.status = 500;
+    ctx.body = { error: (error as Error).message };
+  }
+  await next();
+};
+
+export const oauthGoogle = async (ctx: Context, next: Next) => {
+  try {
+    const { code } = ctx.request.body as { code: string }; // Google OAuth2 code from frontend
+    console.log('oauthGoogle: Received code:', code);
+    if (!code) {
+      ctx.status = 400;
+      ctx.body = { error: 'No authorization code provided' };
+      return;
+    }
+
+    const { tokens } = await client.getToken(code); // Exchange code for tokens
+    console.log('oauthGoogle: Tokens received:', tokens);
+    if (!tokens || !tokens.id_token) {
+      ctx.status = 400;
+      ctx.body = { error: 'Invalid token response from Google' };
+      return;
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token as string, // Assert as string, handle null case above
+      audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    console.log('oauthGoogle: Payload:', payload);
+
+    if (!payload || !payload.email || !payload.name) {
+      ctx.status = 400;
+      ctx.body = { error: 'Invalid Google token payload' };
+      return;
+    }
+
+    const username = payload.name.replace(/\s+/g, '_').toLowerCase(); // Sanitize username from name
+    const email = payload.email;
+    const existingUser = await findByUsername(username);
+    let userId: number;
+
+    if (existingUser.length > 0) {
+      const user = existingUser[0];
+      if (user.role === 'operator') {
+        ctx.status = 403;
+        ctx.body = { error: 'Operators cannot use external authentication' };
+        return;
+      }
+      userId = user.id;
+    } else {
+      const newUser: Omit<User, 'id'> = {
+        username,
+        password: '', // No password for OAuth users
+        email,
+        role: 'user', // Force role to user for OAuth
+        avatarurl: payload.picture || null,
+      };
+      console.log('oauthGoogle: New user to add:', newUser);
+      userId = await add(newUser);
+    }
+
+    const token = jwt.sign({ id: userId, username, role: 'user' }, JWT_SECRET, { expiresIn: '1h' });
+    ctx.status = 200;
+    ctx.body = { token, id: userId, username, role: 'user', email, avatarurl: payload.picture || null };
+  } catch (error) {
+    console.error('oauthGoogle: Error:', error);
     ctx.status = 500;
     ctx.body = { error: (error as Error).message };
   }

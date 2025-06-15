@@ -202,3 +202,4 @@ router.get('/:id([0-9]{1,})', auth_1.authMiddleware, getById);
 router.put('/:id([0-9]{1,})', auth_1.authMiddleware, (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(user_schema_1.userSchema), updateUser);
 router.delete('/:id([0-9]{1,})', auth_1.authMiddleware, deleteUser);
 router.post('/login', (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(auth_2.loginSchema), auth_1.login);
+router.post('/oauth/google', (0, koa_bodyparser_1.default)(), (0, validation_1.validateMiddleware)(auth_2.oauthSchema), auth_1.oauthGoogle); // New OAuth endpoint

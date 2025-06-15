@@ -12,12 +12,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.operatorOnly = exports.authMiddleware = exports.login = exports.register = void 0;
+exports.operatorOnly = exports.authMiddleware = exports.oauthGoogle = exports.login = exports.register = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const users_1 = require("../models/users");
+const google_auth_library_1 = require("google-auth-library");
 const SECRET_CODE = 'WANDERLUST2025';
 const JWT_SECRET = process.env.JWT_SECRET || '7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'your-google-client-id'; // Set in .env
+const client = new google_auth_library_1.OAuth2Client(GOOGLE_CLIENT_ID);
 const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log('register: Request body:', ctx.request.body);
@@ -50,7 +53,7 @@ const register = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
             const userId = yield (0, users_1.add)(newUser);
             const token = jsonwebtoken_1.default.sign({ id: userId, username, role }, JWT_SECRET, { expiresIn: '1h' });
             ctx.status = 201;
-            ctx.body = { token, username, email, role };
+            ctx.body = { token, username, email, role, avatarurl: null };
         }
         catch (dbError) {
             console.error('register: Database error:', dbError);
@@ -95,7 +98,7 @@ const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
         const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
         console.log('login: Token generated for user:', username);
         ctx.status = 200;
-        ctx.body = { token, id: user.id, username: user.username, role: user.role };
+        ctx.body = { token, id: user.id, username: user.username, role: user.role, email: user.email, avatarurl: user.avatarurl };
     }
     catch (error) {
         console.error('login: Error:', error);
@@ -105,6 +108,69 @@ const login = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     yield next();
 });
 exports.login = login;
+const oauthGoogle = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { code } = ctx.request.body; // Google OAuth2 code from frontend
+        console.log('oauthGoogle: Received code:', code);
+        if (!code) {
+            ctx.status = 400;
+            ctx.body = { error: 'No authorization code provided' };
+            return;
+        }
+        const { tokens } = yield client.getToken(code); // Exchange code for tokens
+        console.log('oauthGoogle: Tokens received:', tokens);
+        if (!tokens || !tokens.id_token) {
+            ctx.status = 400;
+            ctx.body = { error: 'Invalid token response from Google' };
+            return;
+        }
+        const ticket = yield client.verifyIdToken({
+            idToken: tokens.id_token, // Assert as string, handle null case above
+            audience: GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        console.log('oauthGoogle: Payload:', payload);
+        if (!payload || !payload.email || !payload.name) {
+            ctx.status = 400;
+            ctx.body = { error: 'Invalid Google token payload' };
+            return;
+        }
+        const username = payload.name.replace(/\s+/g, '_').toLowerCase(); // Sanitize username from name
+        const email = payload.email;
+        const existingUser = yield (0, users_1.findByUsername)(username);
+        let userId;
+        if (existingUser.length > 0) {
+            const user = existingUser[0];
+            if (user.role === 'operator') {
+                ctx.status = 403;
+                ctx.body = { error: 'Operators cannot use external authentication' };
+                return;
+            }
+            userId = user.id;
+        }
+        else {
+            const newUser = {
+                username,
+                password: '', // No password for OAuth users
+                email,
+                role: 'user', // Force role to user for OAuth
+                avatarurl: payload.picture || null,
+            };
+            console.log('oauthGoogle: New user to add:', newUser);
+            userId = yield (0, users_1.add)(newUser);
+        }
+        const token = jsonwebtoken_1.default.sign({ id: userId, username, role: 'user' }, JWT_SECRET, { expiresIn: '1h' });
+        ctx.status = 200;
+        ctx.body = { token, id: userId, username, role: 'user', email, avatarurl: payload.picture || null };
+    }
+    catch (error) {
+        console.error('oauthGoogle: Error:', error);
+        ctx.status = 500;
+        ctx.body = { error: error.message };
+    }
+    yield next();
+});
+exports.oauthGoogle = oauthGoogle;
 const authMiddleware = (ctx, next) => __awaiter(void 0, void 0, void 0, function* () {
     console.log('authMiddleware: Method:', ctx.method, 'Path:', ctx.path, 'Auth:', ctx.headers.authorization);
     const authHeader = ctx.headers.authorization;

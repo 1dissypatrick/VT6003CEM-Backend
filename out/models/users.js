@@ -96,7 +96,7 @@ const add = (user) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const result = yield db.run_insert(query, {
             username,
-            password, // Use hashed password from register
+            password: password || '',
             email,
             role,
             avatarurl: avatarurl || null,

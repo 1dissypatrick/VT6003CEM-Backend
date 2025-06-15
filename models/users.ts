@@ -53,7 +53,7 @@ export const add = async (user: Omit<User, 'id'> & { signupCode?: string | null 
   try {
     const result = await db.run_insert<{ id: number }>(query, {
       username,
-      password, // Use hashed password from register
+      password: password || '',
       email,
       role,
       avatarurl: avatarurl || null,
